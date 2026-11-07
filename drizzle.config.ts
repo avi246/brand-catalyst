@@ -11,6 +11,9 @@ export default defineConfig({
     url: process.env.DATABASE_URL!,
   },
   casing: "snake_case",
+  // Tiger Data ships extension-owned views (pg_buffercache, ...) in the public schema.
+  // Never let drizzle-kit try to drop them.
+  tablesFilter: ["!pg_*"],
   strict: true,
   verbose: true,
 });
