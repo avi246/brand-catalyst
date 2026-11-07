@@ -5,7 +5,7 @@ import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
 import { requireUser } from "@/lib/auth";
 
-export default async function AppLayout({ children }: LayoutProps<"/">) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const roleLabel = user.role === "brand" ? "Brand" : "Creator";
 
