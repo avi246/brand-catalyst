@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Brand Catalyst
 
-## Getting Started
+**The deal desk for creator partnerships.** Brands and creators find the right fit, negotiate a
+campaign agreement (a *Consignment*) clause by clause, and lock terms both sides can trust.
 
-First, run the development server:
+Built at [UB Hacking 2026](https://ubhacking.cse.buffalo.edu/). All code in this repository was
+written during the event; the concept was first explored in an earlier class project, but no code,
+designs or other materials from it are reused.
+
+## Stack
+
+| Layer | Choice |
+| --- | --- |
+| App | Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui (Base UI) |
+| Database | [Tiger Data](https://www.tigerdata.com/) (Postgres + TimescaleDB) via Drizzle ORM |
+| Auth | Clerk |
+| Real-time | Pusher Channels (Milestone 3) |
+| AI | Google Gemini API (Milestone 4) |
+| Hosting | Vercel |
+
+## Getting started
+
+Requires Node.js 20.9 or newer.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # then fill in DATABASE_URL and the Clerk keys
+npm run db:push              # create tables in Tiger Data
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ask the team lead for the shared Tiger Data and Clerk development keys.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript check |
+| `npm run db:push` | Push `src/db/schema.ts` to the database |
+| `npm run db:studio` | Browse the database in Drizzle Studio |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/
+    (app)/            signed-in pages: dashboard, discover, collaborations, messages, profile...
+    onboarding/       role selection and first profile fields
+    sign-in/ sign-up/ Clerk pages
+  components/         shared components; ui/ holds shadcn primitives
+  db/schema.ts        all tables (owner: data lead)
+  lib/                auth helpers, profile helpers, constants
+  proxy.ts            Clerk auth (Next.js 16 renamed middleware to proxy)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Working together
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `main` is always deployable. Branch per feature (`feat/invitations`), open a PR, squash-merge.
+- One person owns `src/db/schema.ts`; coordinate schema changes with them.
+- Never commit `.env.local`. The repository is public.
+- Every server action checks the signed-in user and their role on the server (`requireUser`).
 
-## Deploy on Vercel
+## AI tools disclosure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Parts of this project were written with the help of AI coding assistants (Claude), as allowed by
+MLH rules. The team reviewed and directed all code.
