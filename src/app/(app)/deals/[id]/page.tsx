@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Ban, CheckCircle2, Lock, MessageSquare, Sparkles } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, FilePlus2, Lock, MessageSquare, Sparkles } from "lucide-react";
 import { DealActions, TermComments, type ThreadComment } from "@/components/deals/deal-actions";
 import { PriorityBadge } from "@/components/deals/priority-badge";
 import { DealStatusBadge } from "@/components/deals/status-badge";
@@ -73,7 +73,16 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
         body: "These terms are final for both sides and can't be changed.",
       };
     }
-    if (closed) return { tone: "closed" as const, title: "This consignment was closed.", body: "Nothing here is binding." };
+    if (closed) {
+      return {
+        tone: "closed" as const,
+        title: "This consignment was closed.",
+        body:
+          role === "brand"
+            ? "Nothing here is binding. You're still connected, so you can send a fresh consignment."
+            : "Nothing here is binding. The brand can send you a fresh consignment.",
+      };
+    }
     if (role === "influencer") {
       return {
         tone: "you" as const,
@@ -166,6 +175,11 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                 )}
               </div>
             </div>
+            {closed && role === "brand" && (
+              <Link href={`/deals/new?connection=${deal.connectionId}`} className={cn(buttonVariants())}>
+                <FilePlus2 /> Start a new consignment
+              </Link>
+            )}
             {open && (
               <DealActions
                 consignmentId={deal.id}
