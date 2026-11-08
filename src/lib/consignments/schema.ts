@@ -83,7 +83,12 @@ export const resolutionItemSchema = z.object({
   key: z.string().max(40).describe("The key of the fee ('fee'), deliverable or term this is about"),
   label: z.string().max(80).describe("Human name of the term"),
   outcome: z.enum(["unchanged", "changed", "added", "removed", "unresolved"]),
-  summary: z.string().max(300).describe("One sentence: what was agreed and why, or what is still open"),
+  basis: z
+    .enum(["discussion", "brand_decision"])
+    .describe(
+      "'discussion' if both sides agreed in the comments; 'brand_decision' if it comes from the brand's own instructions",
+    ),
+  summary: z.string().max(300).describe("One sentence: what was agreed or decided and why, or what is still open"),
   sourceCommentIds: z.array(z.string()).max(10).describe("IDs of the comments this is based on"),
 });
 export type ResolutionItem = z.infer<typeof resolutionItemSchema>;

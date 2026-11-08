@@ -428,8 +428,12 @@ const SYSTEM_LINE_PREFIXES = ["📄", "✏️", "🔒", "✖️", "✅", "📝",
 export async function prepareFinalDraft(input: {
   consignmentId: string;
   includeChat: boolean;
+  /** Optional plain-English decisions from the brand, applied as "Brand's decision". */
+  brandInstructions?: string;
 }): Promise<Result<{ content: ConsignmentContent; resolution: ResolutionItem[]; baseVersion: number }>> {
   const me = await requireUser("brand");
+  const instructions = (input.brandInstructions ?? "").trim();
+  if (instructions.length > 2000) return { ok: false, error: "Keep your instructions under 2,000 characters." };
   const deal = await loadDeal(input.consignmentId, me.id);
   if (!deal || deal.brandUserId !== me.id) return { ok: false, error: "Deal not found." };
   if (!isNegotiating(deal.status)) return { ok: false, error: "This consignment isn't in discussion." };
@@ -485,6 +489,7 @@ export async function prepareFinalDraft(input: {
       content: current.content as ConsignmentContent,
       comments,
       chat,
+      brandInstructions: instructions || undefined,
     });
     const fullId = new Map(rawComments.map((c) => [c.id.slice(0, 8), c.id]));
     const resolution = draft.resolution.map((r) => ({

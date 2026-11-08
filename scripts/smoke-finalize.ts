@@ -35,6 +35,27 @@ async function main() {
   if (!draft.resolution.some((r) => r.key === "t4" && r.outcome === "unresolved")) fails.push("t4 should be unresolved");
   if ([draft.content.fee, ...draft.content.terms, ...draft.content.deliverables].some((x) => x.priority !== "mandatory")) fails.push("all priorities must be mandatory");
   console.log(fails.length ? `\nCHECKS FAILED: ${fails.join("; ")}` : "\nAll checks passed (fee 700, 1-month rights, exclusivity open, injection ignored).");
+
+  // Scenario 2: the brand settles the open question and adds a term via its own instructions.
+  const t1 = Date.now();
+  const d2 = await draftFinalAgreement({
+    brandName: "Lumen Skincare",
+    creatorName: "Avi",
+    content,
+    comments,
+    brandInstructions: "Exclusivity only covers sunscreen brands, not all skincare. Add a term: tag @lumenskin in the caption.",
+  });
+  console.log(`\n--- With brand instructions (${Date.now() - t1}ms)`);
+  for (const t of d2.content.terms) console.log(`TERM ${t.key} ${t.label}: ${t.text}`);
+  for (const r of d2.resolution) console.log(` - ${r.key} ${r.outcome.padEnd(10)} [${r.basis}] ${r.summary}`);
+  const f2: string[] = [];
+  const excl = d2.content.terms.find((t) => t.key === "t4");
+  if (!/sunscreen/i.test(excl?.text ?? "")) f2.push("t4 should mention sunscreen");
+  if (!d2.resolution.some((r) => r.key === "t4" && r.basis === "brand_decision" && r.outcome !== "unresolved")) f2.push("t4 should be a settled brand decision");
+  if (!d2.content.terms.some((t) => /@lumenskin/i.test(t.text))) f2.push("tag term should be added");
+  if (d2.content.fee.amount !== 700) f2.push("fee should stay 700");
+  if (!d2.resolution.some((r) => r.key === "fee" && r.basis === "discussion")) f2.push("fee should be 'discussion'");
+  console.log(f2.length ? `CHECKS FAILED: ${f2.join("; ")}` : "All instruction checks passed (sunscreen-only exclusivity, tag added, both labelled correctly).");
 }
 main().catch((e) => {
   console.error("ERROR:", e.message);

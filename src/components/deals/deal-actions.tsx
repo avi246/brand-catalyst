@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Check, CheckCheck, FileSignature, MessageCircleQuestion, PenLine, Undo2, X } from "lucide-react";
+import { Check, CheckCheck, FileSignature, MessageCircleQuestion, PenLine, ThumbsUp, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -186,9 +186,9 @@ export function TermComments({
   const [body, setBody] = useState("");
   const [pending, start] = useTransition();
 
-  const post = (kind: "comment" | "question") =>
+  const post = (kind: "comment" | "question", text = body) =>
     start(async () => {
-      const res = await addClauseComment({ consignmentId, clauseKey, kind, body });
+      const res = await addClauseComment({ consignmentId, clauseKey, kind, body: text });
       if (!res.ok) return void toast.error(res.error);
       setBody("");
       setShow(false);
@@ -196,6 +196,10 @@ export function TermComments({
     });
 
   if (!open && comments.length === 0) return null;
+
+  // One-click answers for the brand when the creator spoke last in this thread.
+  const last = comments.at(-1);
+  const quickReply = open && role === "brand" && !show && last && !last.isBrand;
 
   return (
     <div className="mt-3 flex flex-col gap-2 border-t pt-3">
@@ -218,7 +222,22 @@ export function TermComments({
         </div>
       ))}
 
+      {quickReply && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="xs" variant="outline" disabled={pending} onClick={() => post("comment", "Agreed. 👍")}>
+            <ThumbsUp /> Agree
+          </Button>
+          <Button size="xs" variant="outline" disabled={pending} onClick={() => post("comment", "Sorry, we can't do this one.")}>
+            <X /> Can&apos;t do this
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => setShow(true)}>
+            <MessageCircleQuestion /> Reply…
+          </Button>
+        </div>
+      )}
+
       {open &&
+        !quickReply &&
         (show ? (
           <div className="flex flex-col gap-2">
             <Textarea

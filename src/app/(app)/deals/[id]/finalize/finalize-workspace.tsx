@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ConsignmentEditor } from "@/components/deals/consignment-editor";
 import { ResolutionList } from "@/components/deals/resolution-list";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { prepareFinalDraft } from "@/lib/actions/consignments";
 import type { ConsignmentContent, ResolutionItem } from "@/lib/consignments/schema";
@@ -42,11 +43,12 @@ export function FinalizeWorkspace({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [includeChat, setIncludeChat] = useState(true);
   const [settled, setSettled] = useState(false);
+  const [instructions, setInstructions] = useState("");
   const [pending, start] = useTransition();
 
   const runAi = () =>
     start(async () => {
-      const res = await prepareFinalDraft({ consignmentId, includeChat });
+      const res = await prepareFinalDraft({ consignmentId, includeChat, brandInstructions: instructions });
       if (!res.ok) return void toast.error(res.error);
       setSettled(false);
       setDraft({ content: res.content, resolution: res.resolution, source: "ai", id: Date.now() });
@@ -68,11 +70,28 @@ export function FinalizeWorkspace({
             <Sparkles className="size-4" /> {draft ? "Start over" : "How do you want to start?"}
           </CardTitle>
           <CardDescription>
-            Gemini reads the current terms and all {commentCount} comment{commentCount === 1 ? "" : "s"}, writes definite
-            terms, and notes how each point was settled. It never sends anything: you review it first.
+            Gemini reads the current terms, all {commentCount} comment{commentCount === 1 ? "" : "s"} and your decisions below,
+            writes definite terms, and notes how each point was settled. It never sends anything: you review it first.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="instructions" className="text-sm font-medium">
+              Your decisions <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <Textarea
+              id="instructions"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              maxLength={2000}
+              rows={4}
+              placeholder={`Tell Gemini what you've decided, in plain English. For example:\nAccept her fee of $700. Reposting rights 1 month. Exclusivity only covers sunscreen brands. Ask her to tag @yourbrand.`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Gemini applies these and labels them &ldquo;Brand&apos;s decision&rdquo;, so {creatorName} can see which points you
+              decided and which you both agreed in comments. They can still accept, request changes or decline.
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={includeChat} onChange={(e) => setIncludeChat(e.target.checked)} />
             Also read our chat messages with {creatorName}

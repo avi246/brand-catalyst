@@ -34,6 +34,16 @@ export function ResolutionList({
             <Badge variant="outline" className={cn("border-transparent", OUTCOME[r.outcome].className)}>
               {OUTCOME[r.outcome].label}
             </Badge>
+            {r.outcome !== "unresolved" && (
+              <span
+                className={cn(
+                  "text-xs",
+                  r.basis === "brand_decision" ? "font-medium text-violet-700 dark:text-violet-300" : "text-muted-foreground",
+                )}
+              >
+                {r.basis === "brand_decision" ? "Brand's decision" : "Agreed in discussion"}
+              </span>
+            )}
           </div>
           <p className="mt-1">{r.summary}</p>
           {r.sourceCommentIds.some((id) => commentText[id]) && (
