@@ -101,7 +101,7 @@ export async function createConsignment(input: {
       type: "consignment_received",
       payload: { consignmentId: deal.id, title: content.overview.title, fromName: me.displayName },
     });
-    await postToChat(tx, connectionId, me.id, `📄 Sent a consignment: "${content.overview.title}" (v1). Review it in Collaborations.`);
+    await postToChat(tx, connectionId, me.id, `📄 Sent a consignment: "${content.overview.title}". Review it in Collaborations.`);
     return deal.id;
   });
 
@@ -110,16 +110,19 @@ export async function createConsignment(input: {
 }
 
 /* ------------------------------------------------------------------------------------------
- * Propose changes (either party): a new immutable version. Old versions are never edited.
+ * Edit (brand only): saves a new frozen copy. Users only ever see the current terms + what changed.
  * ---------------------------------------------------------------------------------------- */
 
-export async function proposeVersion(input: {
+export async function updateConsignment(input: {
   consignmentId: string;
   baseVersion: number;
   content: ConsignmentContent;
   changeNote?: string;
 }): Promise<Result<{ versionNo: number }>> {
-  const me = await requireUser();
+  // Product rule (Nov 8): only the brand edits the consignment. Creators negotiate through
+  // comments, then accept or decline. Each edit is still stored as a frozen copy behind the
+  // scenes so "What changed" works and acceptance binds to the exact text.
+  const me = await requireUser("brand");
   const parsed = z
     .object({
       consignmentId: z.uuid(),
@@ -137,16 +140,16 @@ export async function proposeVersion(input: {
     .where(
       and(
         eq(consignments.id, consignmentId),
-        or(eq(consignments.brandUserId, me.id), eq(consignments.influencerUserId, me.id)),
+        eq(consignments.brandUserId, me.id),
       ),
     );
-  if (!deal) return { ok: false, error: "Deal not found." };
+  if (!deal) return { ok: false, error: "Only the brand that created this consignment can edit it." };
   if (!OPEN_STATUSES.includes(deal.status as (typeof OPEN_STATUSES)[number])) {
-    return { ok: false, error: "This deal is locked. Terms can't change any more." };
+    return { ok: false, error: "This consignment is closed. Terms can't change any more." };
   }
-  // Someone else changed it while you were editing: don't silently overwrite their version.
+  // It changed while you were editing (e.g. another tab): don't silently overwrite it.
   if (deal.currentVersion !== baseVersion) {
-    return { ok: false, error: `A newer version (v${deal.currentVersion}) exists. Reload and edit that one.` };
+    return { ok: false, error: "This consignment changed while you were editing. Reload and try again." };
   }
 
   const hash = hashContent(content);
@@ -154,7 +157,7 @@ export async function proposeVersion(input: {
     .select({ hash: consignmentVersions.contentHash })
     .from(consignmentVersions)
     .where(and(eq(consignmentVersions.consignmentId, deal.id), eq(consignmentVersions.versionNo, deal.currentVersion)));
-  if (prev?.hash === hash) return { ok: false, error: "Nothing changed. Edit at least one term before proposing." };
+  if (prev?.hash === hash) return { ok: false, error: "Nothing changed. Edit at least one term before saving." };
 
   const versionNo = deal.currentVersion + 1;
   const otherId = deal.brandUserId === me.id ? deal.influencerUserId : deal.brandUserId;
@@ -178,11 +181,11 @@ export async function proposeVersion(input: {
       type: "consignment_revised",
       payload: { consignmentId: deal.id, title: content.overview.title, versionNo, byName: me.displayName },
     });
-    await postToChat(tx, deal.connectionId, me.id, `✏️ Proposed changes: v${versionNo} of "${content.overview.title}".`);
+    await postToChat(tx, deal.connectionId, me.id, `✏️ Updated the consignment "${content.overview.title}". See what changed.`);
   });
 
   refreshDeal(deal.id);
-  return { ok: true, versionNo, message: `Sent v${versionNo}.` };
+  return { ok: true, versionNo, message: "Consignment updated. The creator can review the changes." };
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -208,7 +211,7 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
     return { ok: false, error: "This deal is already locked." };
   }
   if (deal.currentVersion !== parsed.data.versionNo) {
-    return { ok: false, error: `You're looking at an old version. The latest is v${deal.currentVersion}.` };
+    return { ok: false, error: "The brand updated this consignment a moment ago. Review the changes, then accept." };
   }
 
   const [version] = await db
@@ -255,7 +258,7 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
         payload: { consignmentId: deal.id, title: deal.title, versionNo: version.versionNo },
       });
     }
-    await postToChat(tx, deal.connectionId, me.id, `🔒 Both sides accepted v${version.versionNo}. "${deal.title}" is final.`);
+    await postToChat(tx, deal.connectionId, me.id, `🔒 Accepted "${deal.title}". The consignment is final.`);
   });
 
   if (!finalized) {
@@ -267,7 +270,7 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
   }
 
   refreshDeal(deal.id);
-  return { ok: true, message: finalized ? "Both sides accepted. The deal is locked." : "Accepted. Waiting for the other side." };
+  return { ok: true, message: finalized ? "Accepted. The consignment is final." : "Accepted. Waiting for the other side." };
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -302,7 +305,11 @@ export async function addClauseComment(input: {
     );
   if (!deal) return { ok: false, error: "Deal not found." };
   if (!OPEN_STATUSES.includes(deal.status as (typeof OPEN_STATUSES)[number])) {
-    return { ok: false, error: "This deal is locked." };
+    return { ok: false, error: "This consignment is closed." };
+  }
+  // The first comment moves the deal from "Awaiting creator" to "In discussion".
+  if (deal.status === "sent") {
+    await db.update(consignments).set({ status: "negotiating" }).where(eq(consignments.id, deal.id));
   }
 
   const [version] = await db

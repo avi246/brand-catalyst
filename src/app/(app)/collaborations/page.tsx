@@ -25,7 +25,7 @@ function timeAgo(d: Date) {
 
 /**
  * The pipeline: every relationship moves left to right.
- * Invitations -> Connected -> Proposal sent -> Negotiating -> Final.
+ * To answer / Sent -> Connected -> Awaiting creator -> In discussion -> Accepted.
  */
 export default async function CollaborationsPage() {
   const me = await requireUser();
@@ -44,7 +44,7 @@ export default async function CollaborationsPage() {
     <>
       <PageHeader
         title="Collaborations"
-        description="Every relationship moves left to right: invitation, conversation, proposal, negotiation, locked deal."
+        description="Every relationship moves left to right: invitation, conversation, consignment, discussion, accepted."
       />
 
       {empty ? (
@@ -75,17 +75,17 @@ export default async function CollaborationsPage() {
                 <ConnectedCard key={r.id} row={r} isBrand={me.role === "brand"} />
               ))}
             </Column>
-            <Column title="Proposal sent" count={byStatus("sent").length} hint="v1 waiting for review">
+            <Column title="Awaiting creator" count={byStatus("sent").length} hint="Sent, not discussed yet">
               {byStatus("sent").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
             </Column>
-            <Column title="Negotiating" count={byStatus("negotiating").length} hint="Changes going back and forth">
+            <Column title="In discussion" count={byStatus("negotiating").length} hint="Comments or brand updates">
               {byStatus("negotiating").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
             </Column>
-            <Column title="Final" count={byStatus("final", "in_progress", "completed").length} hint="Locked by both sides">
+            <Column title="Accepted" count={byStatus("final", "in_progress", "completed").length} hint="Final, terms locked">
               {byStatus("final", "in_progress", "completed").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
@@ -202,7 +202,6 @@ function DealCard({ deal }: { deal: Awaited<ReturnType<typeof listMyDeals>>[numb
     <Link href={`/deals/${deal.id}`} className="flex flex-col gap-2 rounded-lg border bg-background p-3 hover:border-foreground/30">
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-medium">{deal.title}</span>
-        <span className="text-xs text-muted-foreground">v{deal.currentVersion}</span>
       </div>
       <span className="truncate text-xs text-muted-foreground">with {deal.other.name}</span>
       <div className="flex items-center justify-between">

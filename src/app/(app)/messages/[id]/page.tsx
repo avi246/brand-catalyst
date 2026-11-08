@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { ArrowLeft, FilePlus2, FileText } from "lucide-react";
+import { DEAL_STATUS_LABEL } from "@/components/deals/status-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -69,7 +70,7 @@ export default async function ConversationPage({ params }: PageProps<"/messages/
               className="flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs hover:border-foreground/30"
             >
               <FileText className="size-3.5" /> {d.title}
-              <span className="text-muted-foreground">· {d.status.replace("_", " ")}</span>
+              <span className="text-muted-foreground">· {DEAL_STATUS_LABEL[d.status] ?? d.status}</span>
             </Link>
           ))}
         </div>

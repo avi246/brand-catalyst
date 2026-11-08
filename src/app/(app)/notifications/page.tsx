@@ -19,11 +19,11 @@ function describe(type: string, payload: Record<string, unknown>) {
     case "consignment_received":
       return { icon: FileText, text: `${payload.fromName ?? "A brand"} sent you a consignment: "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_revised":
-      return { icon: FileText, text: `${payload.byName ?? "Someone"} proposed v${payload.versionNo} of "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+      return { icon: FileText, text: `${payload.byName ?? "The brand"} updated "${payload.title}". See what changed.`, href: `/deals/${payload.consignmentId}` };
     case "consignment_accepted_one_side":
-      return { icon: Check, text: `${payload.byName ?? "Someone"} accepted v${payload.versionNo} of "${payload.title}". Your turn.`, href: `/deals/${payload.consignmentId}` };
+      return { icon: Check, text: `${payload.byName ?? "Someone"} accepted "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_final":
-      return { icon: Lock, text: `"${payload.title}" is final. Both sides accepted v${payload.versionNo}.`, href: `/deals/${payload.consignmentId}` };
+      return { icon: Lock, text: `"${payload.title}" was accepted and is now final.`, href: `/deals/${payload.consignmentId}` };
     case "consignment_comment":
       return { icon: MessageCircle, text: `${payload.byName ?? "Someone"} ${payload.kind === "question" ? "asked a question" : "commented"} on "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_cancelled":

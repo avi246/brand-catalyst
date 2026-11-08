@@ -3,12 +3,12 @@ import { cn } from "@/lib/utils";
 
 export const DEAL_STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
-  sent: "Proposal sent",
-  negotiating: "Negotiating",
-  final: "Final",
+  sent: "Awaiting creator",
+  negotiating: "In discussion",
+  final: "Accepted",
   in_progress: "In progress",
   completed: "Completed",
-  cancelled: "Cancelled",
+  cancelled: "Closed",
 };
 
 const STYLE: Record<string, string> = {
@@ -17,7 +17,7 @@ const STYLE: Record<string, string> = {
   final: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   in_progress: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   completed: "bg-muted text-foreground",
-  cancelled: "bg-muted text-muted-foreground line-through",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
 export function DealStatusBadge({ status }: { status: string }) {

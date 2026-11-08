@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createConsignment, proposeVersion } from "@/lib/actions/consignments";
+import { createConsignment, updateConsignment } from "@/lib/actions/consignments";
 import {
   PRIORITIES,
   PRIORITY_LABEL,
@@ -61,7 +61,7 @@ export function ConsignmentEditor({
         toast.success(res.message ?? "Sent");
         router.push(`/deals/${res.id}`);
       } else {
-        const res = await proposeVersion({
+        const res = await updateConsignment({
           consignmentId: mode.consignmentId,
           baseVersion: mode.baseVersion,
           content: c,
@@ -268,7 +268,7 @@ export function ConsignmentEditor({
       {mode.kind === "revise" && (
         <Card>
           <CardContent>
-            <Field label="What did you change, and why?" name="changeNote" hint="Optional, shown to the other side">
+            <Field label={`Note to ${otherName} about this update`} name="changeNote" hint="Optional">
               <Input id="changeNote" value={changeNote} onChange={(e) => setChangeNote(e.target.value)} maxLength={300} placeholder="Raised the fee to match two reels" />
             </Field>
           </CardContent>
@@ -278,11 +278,11 @@ export function ConsignmentEditor({
       <div className="sticky bottom-0 -mx-4 flex items-center justify-between gap-3 border-t bg-background/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
         <p className="hidden text-xs text-muted-foreground sm:block">
           {mode.kind === "create"
-            ? "Sending counts as your acceptance of v1. It becomes final when the other side accepts it unchanged."
-            : `This creates v${mode.baseVersion + 1}. Earlier versions stay in the history and can't be edited.`}
+            ? `${otherName} can comment on each term, then accept or decline. It's final once they accept.`
+            : `${otherName} will see exactly what you changed before accepting.`}
         </p>
         <Button type="submit" disabled={pending}>
-          {pending ? "Sending…" : mode.kind === "create" ? `Send to ${otherName}` : `Propose v${mode.baseVersion + 1}`}
+          {pending ? "Saving…" : mode.kind === "create" ? `Send to ${otherName}` : "Save and send update"}
         </Button>
       </div>
     </form>
