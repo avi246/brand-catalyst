@@ -1,7 +1,8 @@
 import "server-only";
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db";
-import { brandProfiles, connections, influencerProfiles, users } from "@/db/schema";
+import { connections } from "@/db/schema";
+import { getPeople, type Person } from "@/lib/people";
 
 /** How the signed-in user relates to someone else. Drives every "Invite" button. */
 export type RelationState =
@@ -48,7 +49,7 @@ export type ConnectionRow = {
   direction: "sent" | "received";
   note: string | null;
   createdAt: Date;
-  other: { id: string; name: string; subtitle: string; href: string; isDemo: boolean; avatarUrl: string | null };
+  other: Person;
 };
 
 /** Everything on the Collaborations page: my invitations both ways and my connections. */
@@ -65,32 +66,11 @@ export async function listMyConnections(meId: string): Promise<ConnectionRow[]> 
     .orderBy(desc(connections.createdAt));
   if (rows.length === 0) return [];
 
-  const otherIds = rows.map((c) => (c.fromUserId === meId ? c.toUserId : c.fromUserId));
-  const people = await db
-    .select({ user: users, creator: influencerProfiles, brand: brandProfiles })
-    .from(users)
-    .leftJoin(influencerProfiles, eq(influencerProfiles.userId, users.id))
-    .leftJoin(brandProfiles, eq(brandProfiles.userId, users.id))
-    .where(inArray(users.id, otherIds));
-  const byId = new Map(people.map((p) => [p.user.id, p]));
+  const people = await getPeople(rows.map((c) => (c.fromUserId === meId ? c.toUserId : c.fromUserId)));
 
   return rows.flatMap((c) => {
-    const otherId = c.fromUserId === meId ? c.toUserId : c.fromUserId;
-    const p = byId.get(otherId);
-    if (!p) return [];
-    const other = p.brand
-      ? {
-          name: p.brand.brandName,
-          subtitle: `${p.brand.industry} · ${p.brand.country}`,
-          href: `/brands/${p.brand.slug}`,
-          avatarUrl: p.brand.logoUrl,
-        }
-      : {
-          name: p.user.displayName,
-          subtitle: p.creator ? `@${p.creator.handle} · ${p.creator.primaryNiche}` : "",
-          href: p.creator ? `/creators/${p.creator.handle}` : "#",
-          avatarUrl: p.user.avatarUrl,
-        };
+    const other = people.get(c.fromUserId === meId ? c.toUserId : c.fromUserId);
+    if (!other) return [];
     return [
       {
         id: c.id,
@@ -98,7 +78,7 @@ export async function listMyConnections(meId: string): Promise<ConnectionRow[]> 
         direction: c.fromUserId === meId ? ("sent" as const) : ("received" as const),
         note: c.note,
         createdAt: c.createdAt,
-        other: { id: otherId, isDemo: p.user.isDemo, ...other },
+        other,
       },
     ];
   });

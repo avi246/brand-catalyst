@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { Bell, Check, Send } from "lucide-react";
+import { Bell, Check, FileText, Lock, MessageCircle, Send, X } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { db } from "@/db";
@@ -16,6 +16,18 @@ function describe(type: string, payload: Record<string, unknown>) {
       return { icon: Send, text: `${payload.fromName ?? "Someone"} invited you to connect.`, href: "/collaborations" };
     case "invitation_accepted":
       return { icon: Check, text: `${payload.byName ?? "Someone"} accepted your invitation. Messaging is open.`, href: "/messages" };
+    case "consignment_received":
+      return { icon: FileText, text: `${payload.fromName ?? "A brand"} sent you a consignment: "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+    case "consignment_revised":
+      return { icon: FileText, text: `${payload.byName ?? "Someone"} proposed v${payload.versionNo} of "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+    case "consignment_accepted_one_side":
+      return { icon: Check, text: `${payload.byName ?? "Someone"} accepted v${payload.versionNo} of "${payload.title}". Your turn.`, href: `/deals/${payload.consignmentId}` };
+    case "consignment_final":
+      return { icon: Lock, text: `"${payload.title}" is final. Both sides accepted v${payload.versionNo}.`, href: `/deals/${payload.consignmentId}` };
+    case "consignment_comment":
+      return { icon: MessageCircle, text: `${payload.byName ?? "Someone"} ${payload.kind === "question" ? "asked a question" : "commented"} on "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+    case "consignment_cancelled":
+      return { icon: X, text: `${payload.byName ?? "Someone"} ${payload.verb ?? "cancelled"} "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     default:
       return { icon: Bell, text: type.replace(/_/g, " "), href: "/dashboard" };
   }

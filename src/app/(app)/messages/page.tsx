@@ -1,20 +1,15 @@
 import { MessageSquare } from "lucide-react";
-import { EmptyState, PageHeader } from "@/components/page-header";
-import { requireUser } from "@/lib/auth";
 
 export const metadata = { title: "Messages" };
 
-export default async function MessagesPage() {
-  await requireUser();
+export default function MessagesIndexPage() {
   return (
-    <>
-      <PageHeader title="Messages" description="Conversations open only after an invitation is accepted." />
-      <EmptyState
-        icon={MessageSquare}
-        title="No conversations yet"
-        body="Accept an invitation, or have one of yours accepted, and the conversation appears here."
-        milestone="Milestone 3"
-      />
-    </>
+    <div className="hidden flex-1 flex-col items-center justify-center gap-2 p-8 text-center md:flex">
+      <MessageSquare className="size-6 text-muted-foreground" />
+      <p className="font-medium">Pick a conversation</p>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        Conversations open only after an invitation is accepted, so every chat here is with someone who agreed to talk.
+      </p>
+    </div>
   );
 }
