@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   Bell,
   Compass,
+  FileSignature,
   Handshake,
   LayoutDashboard,
   MessageSquare,
@@ -18,6 +19,7 @@ export const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/collaborations", label: "Collaborations", icon: Handshake },
+  { href: "/contracts", label: "Contracts", icon: FileSignature },
   { href: "/messages", label: "Messages", icon: MessageSquare, badge: "messages" },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/notifications", label: "Notifications", icon: Bell, badge: "notifications" },

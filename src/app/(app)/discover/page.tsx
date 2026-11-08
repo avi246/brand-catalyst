@@ -49,7 +49,7 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
     plain: str(sp.plain) === "1",
   };
   const [mine] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, me.id));
-  const [{ results, understood, aiNote, rankedBy }, countries] = await Promise.all([
+  const [{ results, understood, aiNote, rankedBy, budgetMissing }, countries] = await Promise.all([
     searchCreators(me, filters, mine ?? null),
     distinctCountries("creators"),
   ]);
@@ -96,6 +96,15 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
         </NativeSelect>
       </FilterBar>
 
+      {budgetMissing && (
+        <p className="mb-3 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          Price doesn&apos;t affect scores yet.{" "}
+          <Link href="/profile/edit" className="font-medium text-foreground underline">
+            Set your typical budget
+          </Link>{" "}
+          or search with words like &ldquo;low budget&rdquo;.
+        </p>
+      )}
       <SearchInsight understood={understood} aiNote={aiNote} rankedBy={rankedBy} q={filters.q} plain={filters.plain} n={results.length} noun="creator" />
 
       {results.length === 0 ? (
@@ -105,7 +114,7 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
           {results.map((r) => (
             <Card key={r.user.id} className="flex flex-col">
               <CardContent className="flex flex-1 flex-col gap-4">
-                <MatchScore score={r.score} reasons={r.reasons} />
+                <MatchScore score={r.score} reasons={r.reasons} warnings={r.warnings} />
                 <div className="flex items-start gap-3">
                   <Avatar className="size-11">
                     {r.user.avatarUrl && <AvatarImage src={r.user.avatarUrl} alt="" />}
@@ -208,7 +217,7 @@ async function BrandSearch({ me, sp }: { me: User; sp: SP }) {
           {results.map((r) => (
             <Card key={r.user.id} className="flex flex-col">
               <CardContent className="flex flex-1 flex-col gap-4">
-                <MatchScore score={r.score} reasons={r.reasons} />
+                <MatchScore score={r.score} reasons={r.reasons} warnings={r.warnings} />
                 <div className="flex items-start gap-3">
                   <Avatar className="size-11 rounded-lg">
                     {r.profile.logoUrl && <AvatarImage src={r.profile.logoUrl} alt="" />}
@@ -330,7 +339,7 @@ function SearchInsight({
 }
 
 /** The 0-100 match score and its reasons, at the top of every card. */
-function MatchScore({ score, reasons }: { score: number; reasons: string[] }) {
+function MatchScore({ score, reasons, warnings = [] }: { score: number; reasons: string[]; warnings?: string[] }) {
   const tone =
     score >= 75
       ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
@@ -354,6 +363,15 @@ function MatchScore({ score, reasons }: { score: number; reasons: string[] }) {
           </ul>
         ) : (
           <p className="mt-0.5 text-xs text-muted-foreground">Fill in your profile for better reasons</p>
+        )}
+        {warnings.length > 0 && (
+          <ul className="mt-1 space-y-0.5 text-xs text-amber-800 dark:text-amber-300">
+            {warnings.map((w) => (
+              <li key={w} className="truncate" title={w}>
+                ⚠ {w}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

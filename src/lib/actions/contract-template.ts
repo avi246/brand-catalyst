@@ -21,6 +21,6 @@ export async function saveContractTemplate(input: { template: string }): Promise
     .update(brandProfiles)
     .set({ contractTemplate: isSample ? null : text })
     .where(eq(brandProfiles.userId, me.id));
-  revalidatePath("/settings");
+  revalidatePath("/contracts");
   return { ok: true };
 }

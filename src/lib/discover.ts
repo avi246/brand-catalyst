@@ -83,6 +83,13 @@ export async function searchCreators(me: { id: string }, filters: CreatorFilters
     youngAudience: parsed?.youngAudience ?? false,
   };
 
+  // Price ceiling for scoring: budget words in the search win, then the brand's profile budget.
+  const budgetLevel = parsed?.budgetLevel ?? null;
+  const searchCap = budgetLevel ? BUDGET_CAP[budgetLevel] : null;
+  const budgetCap = searchCap ?? (budgetLevel === "premium" ? null : (brand?.budgetMax ?? null));
+  const budgetLabel = searchCap != null ? `your "${budgetLevel} budget" (${usd(searchCap)})` : `your ${usd(brand?.budgetMax ?? 0)} budget`;
+  const budgetMissing = !budgetLevel && brand?.budgetMax == null;
+
   // 2. What "meaning" do we compare against? The search, or the brand's own profile.
   let queryVector: number[] | null = null;
   const meaningText: string | null = parsed?.meaning || (filters.q && !filters.plain ? filters.q : null) || null;
@@ -121,8 +128,8 @@ export async function searchCreators(me: { id: string }, filters: CreatorFilters
       const fromRate = rates.length ? Math.min(...rates) : null;
       const niches = [r.profile.primaryNiche, ...r.profile.secondaryNiches];
       return { ...r, fromRate, niches, ...scoreCreator(r.profile, r.account, fromRate, {
-        brand, semantic: queryVector ? scale(r.similarity == null ? null : Number(r.similarity)) : null,
-        meaningText, marketCodes, audienceTarget, youngAudience: eff.youngAudience,
+        brand, semantic: queryVector ? calmSemantic(scale, r.similarity == null ? null : Number(r.similarity)) : null,
+        meaningText, marketCodes, audienceTarget, youngAudience: eff.youngAudience, budgetCap, budgetLabel,
       }) };
     })
     .filter((r) => {
@@ -149,12 +156,24 @@ export async function searchCreators(me: { id: string }, filters: CreatorFilters
         ...(parsed.audienceCountry ? [{ label: "Audience in", value: parsed.audienceCountry }] : []),
         ...(parsed.minFollowers ? [{ label: "Followers", value: `${parsed.minFollowers.toLocaleString("en")}+` }] : []),
         ...(parsed.maxRate ? [{ label: "Max price", value: usd(parsed.maxRate) }] : []),
+        ...(budgetLevel
+          ? [{ label: "Budget", value: searchCap != null ? `${budgetLevel}, up to ${usd(searchCap)}` : "premium, no limit" }]
+          : []),
         ...(parsed.youngAudience ? [{ label: "Audience", value: "Young (18-24)" }] : []),
       ]
     : [];
 
-  return { results, understood, aiNote, rankedBy: queryVector ? (filters.q ? "search" : "profile") : "rules" } as const;
+  return {
+    results,
+    understood,
+    aiNote,
+    budgetMissing,
+    rankedBy: queryVector ? (filters.q ? "search" : "profile") : "rules",
+  } as const;
 }
+
+/** Budget words from a search -> a price ceiling for the "from" rate (USD). */
+const BUDGET_CAP = { low: 300, mid: 1000, premium: null } as const;
 
 function scoreCreator(
   p: InfluencerProfile,
@@ -167,12 +186,16 @@ function scoreCreator(
     marketCodes: Set<string>;
     audienceTarget: string | null;
     youngAudience: boolean;
+    /** Price ceiling: from the search ("low budget") or the brand's profile budget. */
+    budgetCap: number | null;
+    budgetLabel: string;
   },
 ) {
   const reasons: { weight: number; text: string }[] = [];
+  const warnings: string[] = [];
   const b = ctx.brand;
 
-  // Niche (30%)
+  // Niche (30% of rules)
   let niche = 0.5;
   if (b?.preferredNiches.length) {
     if (b.preferredNiches.includes(p.primaryNiche)) {
@@ -184,7 +207,7 @@ function scoreCreator(
     } else niche = 0;
   }
 
-  // Audience location (25%): share of the audience in the target country or the brand's markets.
+  // Audience location (20% of rules): share of the audience in the target country or the brand's markets.
   const targets = ctx.audienceTarget ? new Set([ctx.audienceTarget]) : ctx.marketCodes;
   let audience = 0.5;
   if (targets.size && p.audienceTopCountries.length) {
@@ -198,35 +221,59 @@ function scoreCreator(
     if (young >= 40) reasons.push({ weight: 0.2, text: `${young}% of audience is under 25` });
   }
 
-  // Budget (20%)
+  // Budget (25% of rules): cheapest rate vs the ceiling. Over budget falls off fast.
   let budget = 0.5;
-  if (b?.budgetMax && fromRate != null) {
-    budget = fromRate <= b.budgetMax ? 1 : clamp01(b.budgetMax / fromRate);
-    if (fromRate <= b.budgetMax) reasons.push({ weight: 0.18, text: `From ${usd(fromRate)}, within your ${usd(b.budgetMax)} budget` });
+  if (ctx.budgetCap != null && fromRate != null) {
+    if (fromRate <= ctx.budgetCap) {
+      budget = 1;
+      reasons.push({ weight: 0.22, text: `From ${usd(fromRate)}, within ${ctx.budgetLabel}` });
+    } else {
+      budget = clamp01(ctx.budgetCap / fromRate) ** 1.5;
+      warnings.push(`From ${usd(fromRate)}, above ${ctx.budgetLabel}`);
+    }
   }
 
-  // Platform (10%)
+  // Platform (10% of rules)
   let platform = 0.5;
   if (b?.preferredPlatforms.length) {
     platform = b.preferredPlatforms.includes(p.primaryPlatform) ? 1 : 0;
   }
 
-  // Engagement (15%)
+  // Engagement (15% of rules). Under 2% is weak, 5%+ is excellent.
   const er = account?.engagementRate != null ? Number(account.engagementRate) : null;
-  const engagement = er == null ? 0.4 : clamp01(er / 5);
-  if (er != null && er >= 4) reasons.push({ weight: 0.12, text: `Strong engagement: ${er.toFixed(1)}%` });
+  let engagement = 0.4;
+  if (er != null) {
+    engagement = er >= 5 ? 1 : er >= 2 ? 0.4 + ((er - 2) / 3) * 0.6 : (er / 2) * 0.4;
+    if (er >= 4) reasons.push({ weight: 0.12, text: `Strong engagement: ${er.toFixed(1)}%` });
+    if (er < 2) warnings.push(`Low engagement: ${er.toFixed(1)}%`);
+  }
 
-  const rules = 0.3 * niche + 0.25 * audience + 0.2 * budget + 0.1 * platform + 0.15 * engagement;
+  const rules = 0.3 * niche + 0.25 * budget + 0.2 * audience + 0.15 * engagement + 0.1 * platform;
   const semantic = ctx.semantic;
   if (semantic != null && semantic >= 0.6) {
     reasons.push({
-      weight: 0.5 * semantic,
+      weight: 0.35 * semantic,
       text: !ctx.meaningText ? "Content closely matches your brand" : ctx.meaningText.length <= 40 ? `Content closely matches "${ctx.meaningText}"` : "Content closely matches your search",
     });
   }
 
-  const score = Math.round(100 * (semantic == null ? rules : 0.5 * semantic + 0.5 * rules));
-  return { score, reasons: reasons.sort((x, y) => y.weight - x.weight).slice(0, 3).map((r) => r.text) };
+  // 35% meaning + 65% rules (rules alone when there's nothing to compare meaning with).
+  let total = semantic == null ? rules : 0.35 * semantic + 0.65 * rules;
+  // Far over budget (more than 2x the ceiling) can't be a top match, however well it fits otherwise.
+  if (ctx.budgetCap != null && fromRate != null && fromRate > 2 * ctx.budgetCap) total *= 0.75;
+  const score = Math.round(100 * total);
+  return { score, reasons: reasons.sort((x, y) => y.weight - x.weight).slice(0, 3).map((r) => r.text), warnings };
+}
+
+/**
+ * Meaning match on a calmer scale: half "relative to the other candidates", half "absolute
+ * similarity". Pure relative scaling gave the closest creator full marks even when everyone
+ * was almost equally close.
+ */
+function calmSemantic(rel: (v: number | null) => number, sim: number | null) {
+  if (sim == null) return null;
+  const absolute = clamp01((sim - 0.55) / 0.3);
+  return 0.5 * rel(sim) + 0.5 * absolute;
 }
 
 /* ======================================================================================
@@ -288,12 +335,12 @@ export async function searchBrands(me: { id: string }, filters: BrandFilters, cr
       if (p.budgetMax != null && myFrom != null && p.budgetMax >= myFrom) reasons.push({ weight: 0.3, text: `Budget up to ${usd(p.budgetMax)} fits your rates` });
       const country = creator && p.country === creator.country ? 1 : 0.5;
       const rules = 0.4 * niche + 0.2 * platform + 0.3 * budget + 0.1 * country;
-      const semantic = queryVector ? scale(r.similarity == null ? null : Number(r.similarity)) : null;
+      const semantic = queryVector ? calmSemantic(scale, r.similarity == null ? null : Number(r.similarity)) : null;
       if (semantic != null && semantic >= 0.6) {
-        reasons.push({ weight: 0.5 * semantic, text: !meaningText ? "Products match your content" : meaningText.length <= 40 ? `Matches "${meaningText}"` : "Matches your search" });
+        reasons.push({ weight: 0.35 * semantic, text: !meaningText ? "Products match your content" : meaningText.length <= 40 ? `Matches "${meaningText}"` : "Matches your search" });
       }
-      const score = Math.round(100 * (semantic == null ? rules : 0.5 * semantic + 0.5 * rules));
-      return { ...r, fitsMyNiche: !!overlap, score, reasons: reasons.sort((x, y) => y.weight - x.weight).slice(0, 3).map((x) => x.text) };
+      const score = Math.round(100 * (semantic == null ? rules : 0.35 * semantic + 0.65 * rules));
+      return { ...r, fitsMyNiche: !!overlap, score, warnings: [] as string[], reasons: reasons.sort((x, y) => y.weight - x.weight).slice(0, 3).map((x) => x.text) };
     })
     .filter((r) => {
       if (keyword) {
@@ -318,7 +365,7 @@ export async function searchBrands(me: { id: string }, filters: BrandFilters, cr
       ]
     : [];
 
-  return { results, understood, aiNote, rankedBy: queryVector ? (filters.q ? "search" : "profile") : "rules" } as const;
+  return { results, understood, aiNote, budgetMissing: false, rankedBy: queryVector ? (filters.q ? "search" : "profile") : "rules" } as const;
 }
 
 export async function distinctCountries(kind: "creators" | "brands") {
