@@ -21,8 +21,9 @@ import {
   type Priority,
   type Term,
 } from "@/lib/consignments/schema";
+import { NumberInput } from "@/components/number-input";
 import { PLATFORM_LABEL } from "@/lib/constants";
-import { PriorityBadge } from "./priority-badge";
+import { cn } from "@/lib/utils";
 
 type Mode =
   | { kind: "create"; connectionId: string }
@@ -108,17 +109,13 @@ export function ConsignmentEditor({
             <CardTitle>Compensation</CardTitle>
             <CardDescription>The total fee and how it&apos;s paid.</CardDescription>
           </div>
-          <PrioritySelect value={c.fee.priority} onChange={(priority) => setFee({ priority })} />
+          <div className="w-44 shrink-0">
+            <PrioritySelect value={c.fee.priority} onChange={(priority) => setFee({ priority })} />
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-[1fr_6rem_2fr]">
           <Field label="Fee" name="fee">
-            <Input
-              id="fee"
-              type="number"
-              min={0}
-              value={c.fee.amount}
-              onChange={(e) => setFee({ amount: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
-            />
+            <NumberInput id="fee" value={c.fee.amount} max={10_000_000} onValueChange={(amount) => setFee({ amount })} />
           </Field>
           <Field label="Currency" name="currency">
             <NativeSelect id="currency" value={c.fee.currency} onChange={(e) => setFee({ currency: e.target.value })}>
@@ -160,7 +157,7 @@ export function ConsignmentEditor({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {c.deliverables.map((d) => (
-            <div key={d.key} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6">
+            <div key={d.key} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <Field label="Platform" name={`${d.key}-platform`}>
                 <NativeSelect
                   id={`${d.key}-platform`}
@@ -176,13 +173,12 @@ export function ConsignmentEditor({
                 <Input id={`${d.key}-format`} value={d.format} onChange={(e) => setDeliverable(d.key, { format: e.target.value })} placeholder="Reel" />
               </Field>
               <Field label="Count" name={`${d.key}-qty`}>
-                <Input
+                <NumberInput
                   id={`${d.key}-qty`}
-                  type="number"
+                  value={d.quantity}
                   min={1}
                   max={50}
-                  value={d.quantity}
-                  onChange={(e) => setDeliverable(d.key, { quantity: Math.min(50, Math.max(1, Math.round(Number(e.target.value) || 1))) })}
+                  onValueChange={(quantity) => setDeliverable(d.key, { quantity })}
                 />
               </Field>
               <Field label="Draft due" name={`${d.key}-draft`}>
@@ -194,7 +190,7 @@ export function ConsignmentEditor({
               <Field label="Priority" name={`${d.key}-prio`}>
                 <PrioritySelect value={d.priority} onChange={(priority) => setDeliverable(d.key, { priority })} />
               </Field>
-              <Field label="Notes" name={`${d.key}-notes`} className="sm:col-span-5">
+              <Field label="Notes" name={`${d.key}-notes`} className="sm:col-span-1 lg:col-span-2 xl:col-span-5">
                 <Input id={`${d.key}-notes`} value={d.notes} onChange={(e) => setDeliverable(d.key, { notes: e.target.value })} placeholder="30–45 seconds, show the product on skin" />
               </Field>
               <div className="flex items-end justify-end">
@@ -240,24 +236,30 @@ export function ConsignmentEditor({
         <CardContent className="flex flex-col gap-3">
           {c.terms.length === 0 && <p className="text-sm text-muted-foreground">No extra terms.</p>}
           {c.terms.map((t) => (
-            <div key={t.key} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[10rem_1fr_9rem_auto]">
-              <NativeSelect value={t.section} onChange={(e) => setTerm(t.key, { section: e.target.value as Term["section"] })} aria-label="Section">
-                {TERM_SECTIONS.map((s) => <option key={s} value={s}>{SECTION_LABEL[s]}</option>)}
-              </NativeSelect>
-              <div className="flex flex-col gap-2">
-                <Input value={t.label} onChange={(e) => setTerm(t.key, { label: e.target.value })} placeholder="Term name, e.g. Usage rights" aria-label="Term name" />
-                <Textarea value={t.text} onChange={(e) => setTerm(t.key, { text: e.target.value })} rows={2} placeholder="What exactly is agreed" aria-label="Term text" />
+            <div key={t.key} className="flex flex-col gap-3 rounded-lg border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <NativeSelect
+                  value={t.section}
+                  onChange={(e) => setTerm(t.key, { section: e.target.value as Term["section"] })}
+                  aria-label="Section"
+                  className="w-60"
+                >
+                  {TERM_SECTIONS.map((s) => <option key={s} value={s}>{SECTION_LABEL[s]}</option>)}
+                </NativeSelect>
+                <PrioritySelect value={t.priority} onChange={(priority) => setTerm(t.key, { priority })} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => setC((x) => ({ ...x, terms: x.terms.filter((y) => y.key !== t.key) }))}
+                  aria-label="Remove term"
+                >
+                  <Trash2 /> Remove
+                </Button>
               </div>
-              <PrioritySelect value={t.priority} onChange={(priority) => setTerm(t.key, { priority })} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setC((x) => ({ ...x, terms: x.terms.filter((y) => y.key !== t.key) }))}
-                aria-label="Remove term"
-              >
-                <Trash2 />
-              </Button>
+              <Input value={t.label} onChange={(e) => setTerm(t.key, { label: e.target.value })} placeholder="Term name, e.g. Usage rights" aria-label="Term name" />
+              <Textarea value={t.text} onChange={(e) => setTerm(t.key, { text: e.target.value })} rows={2} placeholder="What exactly is agreed" aria-label="Term text" />
             </div>
           ))}
         </CardContent>
@@ -287,15 +289,22 @@ export function ConsignmentEditor({
   );
 }
 
+/** The priority dropdown, coloured like its badge so the level is visible at a glance. */
+const PRIORITY_SELECT_STYLE: Record<Priority, string> = {
+  mandatory: "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
+  negotiable: "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+  preferred: "border-sky-300 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200",
+};
+
 function PrioritySelect({ value, onChange }: { value: Priority; onChange: (p: Priority) => void }) {
   return (
-    <div className="flex items-center gap-2">
-      <NativeSelect value={value} onChange={(e) => onChange(e.target.value as Priority)} aria-label="Priority" className="w-36">
-        {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-      </NativeSelect>
-      <span className="hidden lg:inline">
-        <PriorityBadge priority={value} />
-      </span>
-    </div>
+    <NativeSelect
+      value={value}
+      onChange={(e) => onChange(e.target.value as Priority)}
+      aria-label="Priority"
+      className={cn("w-full min-w-36 font-medium", PRIORITY_SELECT_STYLE[value])}
+    >
+      {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+    </NativeSelect>
   );
 }

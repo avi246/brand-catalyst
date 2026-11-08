@@ -53,7 +53,7 @@ export function RelationActions({
 
   if (state.kind === "sent") {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" size={size} disabled>
           <Clock /> Invitation sent
         </Button>
@@ -71,7 +71,7 @@ export function RelationActions({
 
   if (state.kind === "received") {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size={size}
           disabled={pending}

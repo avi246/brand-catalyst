@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, count, eq, inArray, or } from "drizzle-orm";
-import { ArrowRight, CheckCircle2, Circle, Compass, Handshake, Inbox } from "lucide-react";
+import { ArrowRight, CheckCircle2, Circle, Compass, Handshake, Inbox, Lock, Send } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,20 +17,24 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const bundle = await getProfileBundle(user);
 
-  const [[pendingInvites], [activeDeals]] = await Promise.all([
+  const myDeals = or(eq(consignments.brandUserId, user.id), eq(consignments.influencerUserId, user.id));
+  const [[toAnswer], [sentPending], [negotiating], [locked]] = await Promise.all([
     db
       .select({ n: count() })
       .from(connections)
       .where(and(eq(connections.toUserId, user.id), eq(connections.status, "pending"))),
     db
       .select({ n: count() })
+      .from(connections)
+      .where(and(eq(connections.fromUserId, user.id), eq(connections.status, "pending"))),
+    db
+      .select({ n: count() })
       .from(consignments)
-      .where(
-        and(
-          or(eq(consignments.brandUserId, user.id), eq(consignments.influencerUserId, user.id)),
-          inArray(consignments.status, ["sent", "negotiating", "final", "in_progress"]),
-        ),
-      ),
+      .where(and(myDeals, inArray(consignments.status, ["sent", "negotiating"]))),
+    db
+      .select({ n: count() })
+      .from(consignments)
+      .where(and(myDeals, inArray(consignments.status, ["final", "in_progress"]))),
   ]);
 
   const checks = bundle ? profileChecklist(bundle) : [];
@@ -39,8 +43,10 @@ export default async function DashboardPage() {
   const isBrand = user.role === "brand";
 
   const stats = [
-    { label: "Invitations waiting", value: pendingInvites.n, icon: Inbox, href: "/collaborations" },
-    { label: "Active collaborations", value: activeDeals.n, icon: Handshake, href: "/collaborations" },
+    { label: "Invitations to answer", hint: "Others invited you", value: toAnswer.n, icon: Inbox, highlight: toAnswer.n > 0 },
+    { label: "Invitations you sent", hint: "Waiting for them to accept", value: sentPending.n, icon: Send, highlight: false },
+    { label: "Deals in negotiation", hint: "Proposal sent or changes in progress", value: negotiating.n, icon: Handshake, highlight: false },
+    { label: "Locked deals", hint: "Both sides accepted the same version", value: locked.n, icon: Lock, highlight: false },
   ];
 
   return (
@@ -60,21 +66,29 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map(({ label, value, icon: Icon, href }) => (
-          <Link key={label} href={href} className="group">
-            <Card className="transition-colors group-hover:border-foreground/20">
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map(({ label, hint, value, icon: Icon, highlight }) => (
+          <Link key={label} href="/collaborations" className="group">
+            <Card
+              className={cn(
+                "h-full transition-colors group-hover:border-foreground/20",
+                highlight && "border-primary/40 bg-primary/5",
+              )}
+            >
               <CardHeader>
                 <CardDescription className="flex items-center gap-2">
                   <Icon className="size-4" /> {label}
                 </CardDescription>
                 <CardTitle className="text-3xl tabular-nums">{value}</CardTitle>
+                <p className="text-xs text-muted-foreground">{hint}</p>
               </CardHeader>
             </Card>
           </Link>
         ))}
+      </div>
 
-        <Card className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Profile strength</CardTitle>
             <CardDescription>
@@ -106,7 +120,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="sm:col-span-2">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>How a collaboration works here</CardTitle>
           </CardHeader>

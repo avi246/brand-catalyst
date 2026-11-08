@@ -70,7 +70,7 @@ export function TermComments({
 }: {
   consignmentId: string;
   clauseKey: string;
-  comments: { id: string; author: string; mine: boolean; kind: string; body: string; at: string }[];
+  comments: { id: string; author: string; mine: boolean; kind: string; body: string; at: string; version: string | null }[];
   open: boolean;
 }) {
   const router = useRouter();
@@ -95,7 +95,10 @@ export function TermComments({
         <div key={c.id} className={cn("rounded-md px-3 py-2 text-sm", c.mine ? "bg-primary/5" : "bg-muted/60")}>
           <span className="font-medium">{c.author}</span>
           {c.kind === "question" && <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">asked</span>}
-          <span className="text-muted-foreground"> · {c.at}</span>
+          <span className="text-muted-foreground">
+            {" "}· {c.at}
+            {c.version && ` · on ${c.version}`}
+          </span>
           <p className="mt-0.5">{c.body}</p>
         </div>
       ))}

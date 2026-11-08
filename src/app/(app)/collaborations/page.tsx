@@ -31,7 +31,8 @@ export default async function CollaborationsPage() {
   const me = await requireUser();
   const [rows, deals] = await Promise.all([listMyConnections(me.id), listMyDeals(me.id)]);
 
-  const invitations = rows.filter((r) => r.status === "pending");
+  const toAnswer = rows.filter((r) => r.status === "pending" && r.direction === "received");
+  const sent = rows.filter((r) => r.status === "pending" && r.direction === "sent");
   const dealConnectionIds = new Set(deals.filter((d) => d.status !== "cancelled").map((d) => d.connectionId));
   const connected = rows.filter((r) => r.status === "accepted" && !dealConnectionIds.has(r.id));
   const byStatus = (...s: string[]) => deals.filter((d) => s.includes(d.status));
@@ -58,9 +59,14 @@ export default async function CollaborationsPage() {
         />
       ) : (
         <div className="-mx-4 overflow-x-auto px-4 pb-4 md:-mx-8 md:px-8">
-          <div className="grid min-w-[1100px] grid-cols-5 gap-4">
-            <Column title="Invitations" count={invitations.length} hint="Waiting for an answer">
-              {invitations.map((r) => (
+          <div className="grid min-w-[1320px] grid-cols-6 gap-4">
+            <Column title="To answer" count={toAnswer.length} hint="Invitations waiting for you" highlight={toAnswer.length > 0}>
+              {toAnswer.map((r) => (
+                <InvitationCard key={r.id} row={r} />
+              ))}
+            </Column>
+            <Column title="Sent" count={sent.length} hint="Waiting for them to accept">
+              {sent.map((r) => (
                 <InvitationCard key={r.id} row={r} />
               ))}
             </Column>
@@ -108,9 +114,26 @@ export default async function CollaborationsPage() {
   );
 }
 
-function Column({ title, count, hint, children }: { title: string; count: number; hint: string; children: React.ReactNode }) {
+function Column({
+  title,
+  count,
+  hint,
+  highlight = false,
+  children,
+}: {
+  title: string;
+  count: number;
+  hint: string;
+  highlight?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="flex flex-col gap-3 rounded-xl border bg-muted/30 p-3">
+    <section
+      className={cn(
+        "flex min-w-0 flex-col gap-3 rounded-xl border bg-muted/30 p-3",
+        highlight && "border-primary/40 bg-primary/5",
+      )}
+    >
       <header>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">{title}</h2>
@@ -150,7 +173,7 @@ function InvitationCard({ row }: { row: ConnectionRow }) {
     <div className="flex flex-col gap-2 rounded-lg border bg-background p-3">
       <PersonLine person={row.other} />
       <span className="text-xs text-muted-foreground">
-        {row.direction === "sent" ? "You invited them" : "They invited you"} · {timeAgo(row.createdAt)}
+        {row.direction === "sent" ? "Sent" : "Received"} {timeAgo(row.createdAt)}
       </span>
       {row.note && <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">&ldquo;{row.note}&rdquo;</p>}
       <RelationActions otherUserId={row.other.id} otherName={row.other.name} state={state} size="sm" />

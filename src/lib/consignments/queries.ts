@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import { acceptances, clauseComments, consignments, consignmentVersions, conversations, deliverables } from "@/db/schema";
 import { getPeople } from "@/lib/people";
@@ -28,11 +28,15 @@ export async function getDealForUser(id: string, meId: string) {
   ]);
 
   const current = versions.find((v) => v.versionNo === deal.currentVersion) ?? versions.at(-1)!;
-  const comments = await db
-    .select()
-    .from(clauseComments)
-    .where(eq(clauseComments.versionId, current.id))
-    .orderBy(asc(clauseComments.createdAt));
+  // Comments from every version, so a question asked on v1 isn't lost when v2 arrives.
+  const versionNoById = new Map(versions.map((v) => [v.id, v.versionNo]));
+  const comments = (
+    await db
+      .select()
+      .from(clauseComments)
+      .where(inArray(clauseComments.versionId, versions.map((v) => v.id)))
+      .orderBy(asc(clauseComments.createdAt))
+  ).map((c) => ({ ...c, versionNo: versionNoById.get(c.versionId) ?? 0 }));
 
   const people = await getPeople([deal.brandUserId, deal.influencerUserId, ...comments.map((c) => c.userId)]);
 

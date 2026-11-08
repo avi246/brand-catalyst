@@ -37,17 +37,28 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
   const previous = versions.find((v) => v.versionNo === current.versionNo - 1);
   const changes = previous ? diffContent(previous.content, c) : [];
 
-  const commentsFor = (key: string) =>
-    comments
-      .filter((x) => x.clauseKey === key)
-      .map((x) => ({
-        id: x.id,
-        author: people.get(x.userId)?.name ?? "Someone",
-        mine: x.userId === me.id,
-        kind: x.kind,
-        body: x.body,
-        at: fmtTime(x.createdAt),
-      }));
+  const toView = (x: (typeof comments)[number]) => ({
+    id: x.id,
+    author: people.get(x.userId)?.name ?? "Someone",
+    mine: x.userId === me.id,
+    kind: x.kind,
+    body: x.body,
+    at: fmtTime(x.createdAt),
+    version: x.versionNo !== current.versionNo ? `v${x.versionNo}` : null,
+  });
+  const commentsFor = (key: string) => comments.filter((x) => x.clauseKey === key).map(toView);
+
+  // Human name for whatever a comment is attached to.
+  const labelFor = (key: string) => {
+    if (key === "general") return "General";
+    if (key === "fee") return "Compensation";
+    const d = c.deliverables.find((x) => x.key === key);
+    if (d) return `Deliverable: ${d.format}`;
+    return c.terms.find((x) => x.key === key)?.label ?? "A removed term";
+  };
+  const fromOther = comments.filter((x) => x.userId === other.id);
+  const otherOnCurrent = fromOther.filter((x) => x.versionNo === current.versionNo);
+  const otherQuestions = otherOnCurrent.filter((x) => x.kind === "question").length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,6 +113,13 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                   <p className="text-muted-foreground">
                     The deal locks when both of you accept the same version. Any change creates a new version.
                   </p>
+                  {otherOnCurrent.length > 0 && (
+                    <a href="#discussion" className="mt-1 inline-block font-medium text-amber-800 hover:underline dark:text-amber-300">
+                      {other.name} left {otherOnCurrent.length} comment{otherOnCurrent.length === 1 ? "" : "s"}
+                      {otherQuestions > 0 && ` (${otherQuestions} question${otherQuestions === 1 ? "" : "s"})`} on v
+                      {current.versionNo}. See below.
+                    </a>
+                  )}
                 </>
               )}
             </div>
@@ -114,6 +132,42 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
         <div className="flex flex-col gap-6">
+          {/* Discussion summary: every comment and question in one place, newest first */}
+          {(comments.length > 0 || open) && (
+            <Card id="discussion" className="scroll-mt-20">
+              <CardHeader>
+                <CardTitle>Questions and comments</CardTitle>
+                <CardDescription>
+                  Everything both sides said about the terms, newest first. Click one to jump to that term.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {comments.length === 0 && <p className="text-sm text-muted-foreground">No comments yet.</p>}
+                {[...comments].reverse().slice(0, 8).map((x) => (
+                  <a
+                    key={x.id}
+                    href={`#clause-${x.clauseKey}`}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm hover:border-foreground/30",
+                      x.userId === other.id && x.versionNo === current.versionNo && "border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20",
+                    )}
+                  >
+                    <span className="font-medium">{people.get(x.userId)?.name ?? "Someone"}</span>{" "}
+                    <span className="text-muted-foreground">
+                      {x.kind === "question" ? "asked about" : "commented on"} {labelFor(x.clauseKey)} · v{x.versionNo} ·{" "}
+                      {fmtTime(x.createdAt)}
+                    </span>
+                    <p className="mt-0.5">{x.body}</p>
+                  </a>
+                ))}
+                <div id="clause-general" className="scroll-mt-20 border-t pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">General discussion about the whole deal</p>
+                  <TermComments consignmentId={deal.id} clauseKey="general" comments={[]} open={open} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* What changed */}
           {changes.length > 0 && (
             <Card>
@@ -166,7 +220,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
               <CardTitle>Compensation</CardTitle>
               <PriorityBadge priority={c.fee.priority} />
             </CardHeader>
-            <CardContent className="text-sm">
+            <CardContent id="clause-fee" className="scroll-mt-20 text-sm">
               <p className="text-2xl font-semibold tabular-nums">
                 {c.fee.amount.toLocaleString("en", { style: "currency", currency: c.fee.currency, maximumFractionDigits: 0 })}
               </p>
@@ -185,7 +239,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {c.deliverables.map((d) => (
-                <div key={d.key} className="rounded-lg border p-3 text-sm">
+                <div key={d.key} id={`clause-${d.key}`} className="scroll-mt-20 rounded-lg border p-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">
                       {d.quantity} × {d.format} on {PLATFORM_LABEL[d.platform]}
@@ -213,7 +267,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   {terms.map((t) => (
-                    <div key={t.key} className="rounded-lg border p-3 text-sm">
+                    <div key={t.key} id={`clause-${t.key}`} className="scroll-mt-20 rounded-lg border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">{t.label}</span>
                         <PriorityBadge priority={t.priority} />
