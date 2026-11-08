@@ -98,7 +98,7 @@ export function ContractReview({
           {issues?.map((i, n) => (
             <div key={n} className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/20">
               <p className="flex items-center gap-1.5 font-medium">
-                <AlertTriangle className="size-4 text-amber-700" />
+                <AlertTriangle className="size-4 text-amber-700 dark:text-amber-400" />
                 {i.kind === "conflict" ? "Contradiction" : "Not covered by the agreed terms"}
               </p>
               <p className="mt-1">

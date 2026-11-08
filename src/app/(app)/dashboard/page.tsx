@@ -106,7 +106,7 @@ export default async function DashboardPage() {
               {checks.map((c) => (
                 <li key={c.label} className="flex items-center gap-2">
                   {c.done ? (
-                    <CheckCircle2 className="size-4 text-emerald-600" aria-label="Done" />
+                    <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" aria-label="Done" />
                   ) : (
                     <Circle className="size-4 text-muted-foreground" aria-label="To do" />
                   )}

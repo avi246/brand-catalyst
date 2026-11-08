@@ -18,7 +18,10 @@ const globalForDb = globalThis as unknown as { pgClient?: ReturnType<typeof post
 const client =
   globalForDb.pgClient ??
   postgres(connectionString ?? "postgres://missing-database-url@127.0.0.1:1/missing", {
-    max: 10,
+    // On Vercel each server instance opens its own connections, so keep the count low
+    // and release idle ones quickly. Otherwise a busy demo could exhaust the database's limit.
+    max: process.env.VERCEL ? 3 : 10,
+    idle_timeout: 20,
     // Tiger Data requires TLS; the connection string carries sslmode=require.
     prepare: false,
   });

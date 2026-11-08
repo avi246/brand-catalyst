@@ -85,37 +85,39 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Brand Catalyst: late-night creator studio. Deep aubergine, hot pink, sunset orange. */
+  color-scheme: dark;
+  --background: #0e0b1a;
+  --foreground: #f2eff9;
+  --card: #18142a;
+  --card-foreground: #f2eff9;
+  --popover: #1d1832;
+  --popover-foreground: #f2eff9;
+  --primary: #d13b25;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2342;
+  --secondary-foreground: #e9e4f7;
+  --muted: #221c38;
+  --muted-foreground: #a9a3bf;
+  --accent: #2f2750;
+  --accent-foreground: #ffffff;
+  --destructive: #ff5a6e;
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 16%);
+  --ring: #ff7a5c;
+  --chart-1: #ff7a45;
+  --chart-2: #e8325f;
+  --chart-3: #8e2de2;
+  --chart-4: #3dd6c6;
+  --chart-5: #f2eff9;
+  --sidebar: #0a0814;
+  --sidebar-foreground: #b8b2cc;
+  --sidebar-primary: #d13b25;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1f1a33;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #ff7a5c;
 }
 
 @layer base {

@@ -185,7 +185,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
               {status.tone === "done" ? (
-                <Lock className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                <Lock className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-400" />
               ) : status.tone === "closed" ? (
                 <Ban className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
               ) : null}
@@ -290,7 +290,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
             <Card className="border-sky-200 dark:border-sky-900">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="size-4 text-sky-600" /> What changed in the last update
+                  <Sparkles className="size-4 text-sky-600 dark:text-sky-400" /> What changed in the last update
                 </CardTitle>
                 <CardDescription>
                   {people.get(current.createdBy)?.name} updated the proposal {fmtTime(current.createdAt)}

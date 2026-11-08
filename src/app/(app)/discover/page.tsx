@@ -307,7 +307,7 @@ function SearchInsight({
     <div className="mb-4 flex flex-col gap-2">
       {understood.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-900 dark:bg-violet-950/20">
-          <Sparkles className="size-4 text-violet-600" />
+          <Sparkles className="size-4 text-violet-600 dark:text-violet-400" />
           <span className="text-muted-foreground">Gemini understood:</span>
           {understood.map((u) => (
             <Badge key={u.label} variant="outline" className="bg-background">

@@ -144,7 +144,7 @@ export function FinalizeWorkspace({
                 <ResolutionList items={draft.resolution} commentText={commentText} />
                 {unresolved.length > 0 && (
                   <label className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
                     <span className="flex-1">
                       {unresolved.length} point{unresolved.length === 1 ? " is" : "s are"} still open. Settle them in the terms
                       below (or with {creatorName} first), then confirm.

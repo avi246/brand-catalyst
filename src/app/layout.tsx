@@ -29,13 +29,35 @@ export const metadata: Metadata = {
     "The deal desk for creator partnerships: find the right creators, negotiate term by term, and sign contracts both sides trust.",
 };
 
+// Runs before the page paints, so someone who chose dark never sees a flash of light.
+const applySavedTheme = `try{if(localStorage.getItem("bc-theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <ClerkProvider appearance={{ variables: { colorPrimary: "#d13b25", borderRadius: "0.75rem" } }}>
+    <ClerkProvider
+      appearance={{
+        // CSS variables, so Clerk's screens follow whichever theme is on.
+        variables: {
+          colorPrimary: "var(--primary)",
+          colorPrimaryForeground: "var(--primary-foreground)",
+          colorBackground: "var(--card)",
+          colorForeground: "var(--foreground)",
+          colorMutedForeground: "var(--muted-foreground)",
+          colorInput: "var(--background)",
+          colorInputForeground: "var(--foreground)",
+          colorNeutral: "var(--foreground)",
+          borderRadius: "0.75rem",
+        },
+      }}
+    >
       <html
         lang="en"
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
       >
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: applySavedTheme }} />
+        </head>
         <body className="min-h-full flex flex-col bg-background text-foreground">
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster richColors position="top-right" />
