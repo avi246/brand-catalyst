@@ -198,9 +198,9 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                 )}
               </div>
             </div>
-            {closed && role === "brand" && (
-              <Link href={`/deals/new?connection=${deal.connectionId}`} className={cn(buttonVariants())}>
-                <FilePlus2 /> Start a new consignment
+            {(closed || accepted) && role === "brand" && (
+              <Link href={`/deals/new?connection=${deal.connectionId}`} className={cn(buttonVariants({ variant: accepted ? "outline" : "default" }))}>
+                <FilePlus2 /> {accepted ? "New campaign with this creator" : "Start a new consignment"}
               </Link>
             )}
             {(open || awaiting) && (

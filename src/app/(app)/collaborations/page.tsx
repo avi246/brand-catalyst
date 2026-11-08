@@ -33,7 +33,10 @@ export default async function CollaborationsPage() {
 
   const toAnswer = rows.filter((r) => r.status === "pending" && r.direction === "received");
   const sent = rows.filter((r) => r.status === "pending" && r.direction === "sent");
-  const dealConnectionIds = new Set(deals.filter((d) => d.status !== "cancelled").map((d) => d.connectionId));
+  // A pair stays in "Connected" unless they have a deal IN PROGRESS. Finished or closed deals
+  // don't hide them: the same brand and creator can run many campaigns together.
+  const ACTIVE = ["sent", "negotiating", "awaiting_acceptance"];
+  const dealConnectionIds = new Set(deals.filter((d) => ACTIVE.includes(d.status)).map((d) => d.connectionId));
   const connected = rows.filter((r) => r.status === "accepted" && !dealConnectionIds.has(r.id));
   const byStatus = (...s: string[]) => deals.filter((d) => s.includes(d.status));
   const cancelled = byStatus("cancelled");
@@ -70,7 +73,7 @@ export default async function CollaborationsPage() {
                 <InvitationCard key={r.id} row={r} />
               ))}
             </Column>
-            <Column title="Connected" count={connected.length} hint="Chatting, no proposal yet">
+            <Column title="Connected" count={connected.length} hint="No consignment in progress">
               {connected.map((r) => (
                 <ConnectedCard key={r.id} row={r} isBrand={me.role === "brand"} />
               ))}
