@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Ban, CheckCircle2, FilePlus2, Lock, MessageSquare, Sparkles } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, FilePlus2, Lock, MessageSquare, Printer, Sparkles } from "lucide-react";
 import { DealActions, TermComments, type ThreadComment } from "@/components/deals/deal-actions";
+import { ContractView } from "@/components/deals/contract-view";
 import { FinalDocument } from "@/components/deals/final-document";
+import { contractSignatures } from "@/lib/contracts/signatures";
 import { ResolutionList } from "@/components/deals/resolution-list";
 import { PriorityBadge } from "@/components/deals/priority-badge";
 import { DealStatusBadge } from "@/components/deals/status-badge";
@@ -14,7 +16,7 @@ import { diffContent, SECTION_LABEL, TERM_SECTIONS, type ResolutionItem } from "
 import { PLATFORM_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "Consignment" };
+export const metadata = { title: "Proposal" };
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("en", { month: "short", day: "numeric" }) : "Not set";
@@ -59,7 +61,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
   });
   const threadFor = (key: string) => comments.filter((x) => x.clauseKey === key).map(toThread);
   const labelFor = (key: string) => {
-    if (key === "general") return "the whole consignment";
+    if (key === "general") return "the whole proposal";
     if (key === "fee") return "Compensation";
     const d = c.deliverables.find((x) => x.key === key);
     if (d) return `${d.quantity} × ${d.format}`;
@@ -74,60 +76,60 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
     if (accepted) {
       return {
         tone: "done" as const,
-        title: `Accepted by ${creator.name}${deal.finalizedAt ? ` on ${fmtTime(deal.finalizedAt)}` : ""}.`,
-        body: "These terms are final for both sides and can't be changed.",
+        title: `Contract signed by both sides${deal.finalizedAt ? ` on ${fmtTime(deal.finalizedAt)}` : ""}.`,
+        body: "The contract is final and can't be changed.",
       };
     }
     if (closed) {
       return {
         tone: "closed" as const,
-        title: "This consignment was closed.",
+        title: "This proposal was closed.",
         body:
           role === "brand"
-            ? "Nothing here is binding. You're still connected, so you can send a fresh consignment."
-            : "Nothing here is binding. The brand can send you a fresh consignment.",
+            ? "Nothing here is binding. You're still connected, so you can send a new proposal."
+            : "Nothing here is binding. The brand can send you a new proposal.",
       };
     }
     if (awaiting) {
       return role === "influencer"
         ? {
             tone: "you" as const,
-            title: `${brand.name} sent the final agreement. Read it, then accept, request changes or decline.`,
-            body: "It reflects what you agreed in the discussion. Once you accept, it can't change.",
+            title: `${brand.name} signed and sent the contract. Read it, then sign, request changes or decline.`,
+            body: "It's the brand's contract with the agreed terms attached as Schedule A. Once you sign, it can't change.",
           }
         : {
             tone: "waiting" as const,
-            title: `Final agreement sent. Waiting for ${creator.name} to accept.`,
-            body: "They can accept it, send it back to discussion with a reason, or decline.",
+            title: `Contract signed and sent. Waiting for ${creator.name} to sign.`,
+            body: "They can sign it, send it back to discussion with a reason, or decline.",
           };
     }
     if (role === "influencer") {
       return {
         tone: deal.creatorReadyAt ? ("waiting" as const) : ("you" as const),
         title: deal.creatorReadyAt
-          ? `You're ready. Waiting for ${brand.name} to send the final agreement.`
+          ? `You're ready. Waiting for ${brand.name} to send the contract.`
           : changes.length
             ? `${brand.name} updated the terms. Review what changed.`
-            : `${brand.name} sent you this consignment.`,
-        body: "Negotiate by commenting under any term. When you're happy, click Ready to finalize; you'll then get a clean agreement to accept.",
+            : `${brand.name} sent you a proposal.`,
+        body: "Negotiate by commenting under any term. When you're happy, click Ready to finalize; you'll then get the contract to sign.",
       };
     }
     return {
       tone: newFromCreator.length || deal.creatorReadyAt ? ("you" as const) : ("waiting" as const),
       title: deal.creatorReadyAt
-        ? `${creator.name} is ready to finalize. Prepare the final agreement.`
+        ? `${creator.name} is ready to finalize. Prepare the contract.`
         : newFromCreator.length
           ? `${creator.name} left ${newFromCreator.length} comment${newFromCreator.length === 1 ? "" : "s"}${openQuestions ? ` (${openQuestions} question${openQuestions === 1 ? "" : "s"})` : ""}. Reply, or edit the terms.`
           : `Waiting for ${creator.name} to comment or mark ready.`,
-      body: "When the discussion is settled, prepare the final agreement. Gemini can draft it from the comments.",
+      body: "When the discussion is settled, prepare the contract. Gemini settles the terms from the comments and your decisions.",
     };
   })();
 
   const steps = [
     { label: "Sent", done: true },
     { label: "In discussion", done: deal.status !== "sent" || comments.length > 0 },
-    { label: "Final agreement", done: awaiting || accepted },
-    { label: closed ? "Closed" : "Accepted", done: accepted || closed },
+    { label: "Contract sent", done: awaiting || accepted },
+    { label: closed ? "Closed" : "Signed", done: accepted || closed },
   ];
 
   return (
@@ -200,7 +202,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
             </div>
             {(closed || accepted) && role === "brand" && (
               <Link href={`/deals/new?connection=${deal.connectionId}`} className={cn(buttonVariants({ variant: accepted ? "outline" : "default" }))}>
-                <FilePlus2 /> {accepted ? "New campaign with this creator" : "Start a new consignment"}
+                <FilePlus2 /> {accepted ? "New campaign with this creator" : "Start a new proposal"}
               </Link>
             )}
             {(open || awaiting) && (
@@ -210,6 +212,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                 role={role}
                 phase={awaiting ? "final" : "discussion"}
                 creatorReady={!!deal.creatorReadyAt}
+                signerName={me.displayName}
               />
             )}
           </div>
@@ -219,12 +222,23 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
       {showDocument ? (
         <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
           <div className="flex flex-col gap-6">
-            <FinalDocument content={c} brandName={brand.name} creatorName={creator.name} />
+            {current.contractText ? (
+              <>
+                <div className="flex justify-end">
+                  <Link href={`/contract/${deal.id}`} target="_blank" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+                    <Printer /> Printable version / PDF
+                  </Link>
+                </div>
+                <ContractView text={current.contractText} signatures={contractSignatures(view)} fingerprint={current.contentHash} />
+              </>
+            ) : (
+              <FinalDocument content={c} brandName={brand.name} creatorName={creator.name} />
+            )}
             {accepted && view.deliverables.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Deliverables tracker</CardTitle>
-                  <CardDescription>Created when the agreement was accepted. Status updates arrive in a later milestone.</CardDescription>
+                  <CardDescription>Created when the contract was signed. Status updates arrive in a later milestone.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 text-sm">
                   {view.deliverables.map((d) => (
@@ -243,7 +257,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
           <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">How the discussion was settled</CardTitle>
+                <CardTitle className="text-base">How the proposal was settled</CardTitle>
                 <CardDescription>Each point with the comments it came from.</CardDescription>
               </CardHeader>
               <CardContent>
@@ -253,7 +267,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
             {changes.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Changes from the negotiated terms</CardTitle>
+                  <CardTitle className="text-base">Changes from the proposal</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 text-sm">
                   {changes.map((ch, i) => (
@@ -279,7 +293,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                   <Sparkles className="size-4 text-sky-600" /> What changed in the last update
                 </CardTitle>
                 <CardDescription>
-                  {people.get(current.createdBy)?.name} updated the consignment {fmtTime(current.createdAt)}
+                  {people.get(current.createdBy)?.name} updated the proposal {fmtTime(current.createdAt)}
                   {current.changeNote && <> · &ldquo;{current.changeNote}&rdquo;</>}
                 </CardDescription>
               </CardHeader>
@@ -391,7 +405,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
             <Card>
               <CardHeader>
                 <CardTitle>Deliverables tracker</CardTitle>
-                <CardDescription>Created when the consignment was accepted. Status updates arrive in a later milestone.</CardDescription>
+                <CardDescription>Created when the contract was signed. Status updates arrive in a later milestone.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 text-sm">
                 {view.deliverables.map((d) => (
@@ -445,7 +459,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
           <Card id="clause-general" className="scroll-mt-20">
             <CardHeader>
               <CardTitle className="text-base">General</CardTitle>
-              <CardDescription>Anything about the consignment as a whole.</CardDescription>
+              <CardDescription>Anything about the proposal as a whole.</CardDescription>
             </CardHeader>
             <CardContent>
               <TermComments

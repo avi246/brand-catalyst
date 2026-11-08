@@ -56,7 +56,7 @@ export default async function ConversationPage({ params }: PageProps<"/messages/
             href={`/deals/new?connection=${convo.connection.id}`}
             className={cn(buttonVariants({ size: "sm" }))}
           >
-            <FilePlus2 /> New consignment
+            <FilePlus2 /> New proposal
           </Link>
         )}
       </header>

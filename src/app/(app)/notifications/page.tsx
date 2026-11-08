@@ -17,21 +17,21 @@ function describe(type: string, payload: Record<string, unknown>) {
     case "invitation_accepted":
       return { icon: Check, text: `${payload.byName ?? "Someone"} accepted your invitation. Messaging is open.`, href: "/messages" };
     case "consignment_received":
-      return { icon: FileText, text: `${payload.fromName ?? "A brand"} sent you a consignment: "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+      return { icon: FileText, text: `${payload.fromName ?? "A brand"} sent you a proposal: "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_revised":
       return { icon: FileText, text: `${payload.byName ?? "The brand"} updated "${payload.title}". See what changed.`, href: `/deals/${payload.consignmentId}` };
     case "consignment_accepted_one_side":
-      return { icon: Check, text: `${payload.byName ?? "Someone"} accepted "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+      return { icon: Check, text: `${payload.byName ?? "Someone"} signed "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_final":
-      return { icon: Lock, text: `"${payload.title}" was accepted and is now final.`, href: `/deals/${payload.consignmentId}` };
+      return { icon: Lock, text: `The contract for "${payload.title}" is signed by both sides.`, href: `/deals/${payload.consignmentId}` };
     case "consignment_comment":
       return { icon: MessageCircle, text: `${payload.byName ?? "Someone"} ${payload.kind === "question" ? "asked a question" : "commented"} on "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_ready":
-      return { icon: Check, text: `${payload.byName ?? "The creator"} is ready to finalize "${payload.title}". Prepare the final agreement.`, href: `/deals/${payload.consignmentId}` };
+      return { icon: Check, text: `${payload.byName ?? "The creator"} is ready to finalize "${payload.title}". Prepare the contract.`, href: `/deals/${payload.consignmentId}` };
     case "final_agreement_sent":
-      return { icon: FileText, text: `${payload.byName ?? "The brand"} sent the final agreement for "${payload.title}". Review and accept.`, href: `/deals/${payload.consignmentId}` };
+      return { icon: FileText, text: `${payload.byName ?? "The brand"} signed and sent the contract for "${payload.title}". Review and sign.`, href: `/deals/${payload.consignmentId}` };
     case "final_changes_requested":
-      return { icon: MessageCircle, text: `${payload.byName ?? "The creator"} asked for changes to the final agreement for "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+      return { icon: MessageCircle, text: `${payload.byName ?? "The creator"} asked for changes to the contract for "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_cancelled":
       return { icon: X, text: `${payload.byName ?? "Someone"} ${payload.verb ?? "cancelled"} "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     default:

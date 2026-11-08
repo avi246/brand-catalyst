@@ -9,7 +9,7 @@ import { defaultContent } from "@/lib/consignments/schema";
 import { getPerson } from "@/lib/people";
 import { isUuid } from "@/lib/utils";
 
-export const metadata = { title: "New consignment" };
+export const metadata = { title: "New proposal" };
 
 export default async function NewDealPage({ searchParams }: PageProps<"/deals/new">) {
   const me = await requireUser("brand");
@@ -33,7 +33,7 @@ export default async function NewDealPage({ searchParams }: PageProps<"/deals/ne
   return (
     <>
       <PageHeader
-        title={`New consignment for ${creator.name}`}
+        title={`New proposal for ${creator.name}`}
         description="Start from the suggested terms, change what you need, and mark how firm each one is."
       />
       <ConsignmentEditor initial={defaultContent()} mode={{ kind: "create", connectionId: conn.id }} otherName={creator.name} />

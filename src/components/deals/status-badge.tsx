@@ -3,10 +3,10 @@ import { cn } from "@/lib/utils";
 
 export const DEAL_STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
-  sent: "Awaiting creator",
+  sent: "Proposal sent",
   negotiating: "In discussion",
-  awaiting_acceptance: "Final agreement sent",
-  final: "Accepted",
+  awaiting_acceptance: "Contract sent",
+  final: "Signed",
   in_progress: "In progress",
   completed: "Completed",
   cancelled: "Closed",

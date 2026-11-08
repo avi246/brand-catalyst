@@ -14,9 +14,14 @@ import {
   deliverables,
   messages,
   notifications,
+  brandProfiles,
+  influencerProfiles,
+  users,
 } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
-import { hashContent } from "@/lib/consignments/hash";
+import { hashContent, hashContract } from "@/lib/consignments/hash";
+import { DEFAULT_CONTRACT_TEMPLATE, renderContract } from "@/lib/contracts/template";
+import { checkContractConflicts, type ContractIssue } from "@/lib/ai/conflicts";
 import {
   consignmentContentSchema,
   resolutionItemSchema,
@@ -80,7 +85,7 @@ export async function createConsignment(input: {
         or(eq(connections.fromUserId, me.id), eq(connections.toUserId, me.id)),
       ),
     );
-  if (!conn) return { ok: false, error: "You can only send a consignment to someone you're connected with." };
+  if (!conn) return { ok: false, error: "You can only send a proposal to someone you're connected with." };
   const creatorId = conn.fromUserId === me.id ? conn.toUserId : conn.fromUserId;
   const hash = hashContent(content);
 
@@ -110,12 +115,12 @@ export async function createConsignment(input: {
       type: "consignment_received",
       payload: { consignmentId: deal.id, title: content.overview.title, fromName: me.displayName },
     });
-    await postToChat(tx, connectionId, me.id, `📄 Sent a consignment: "${content.overview.title}". Review it in Collaborations.`);
+    await postToChat(tx, connectionId, me.id, `📄 Sent a proposal: "${content.overview.title}". Review it in Collaborations.`);
     return deal.id;
   });
 
   refreshDeal(id);
-  return { ok: true, id, message: "Consignment sent." };
+  return { ok: true, id, message: "Proposal sent." };
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -152,13 +157,13 @@ export async function updateConsignment(input: {
         eq(consignments.brandUserId, me.id),
       ),
     );
-  if (!deal) return { ok: false, error: "Only the brand that created this consignment can edit it." };
+  if (!deal) return { ok: false, error: "Only the brand that created this proposal can edit it." };
   if (!OPEN_STATUSES.includes(deal.status as (typeof OPEN_STATUSES)[number])) {
-    return { ok: false, error: "This consignment is closed. Terms can't change any more." };
+    return { ok: false, error: "This proposal is closed. Terms can't change any more." };
   }
   // It changed while you were editing (e.g. another tab): don't silently overwrite it.
   if (deal.currentVersion !== baseVersion) {
-    return { ok: false, error: "This consignment changed while you were editing. Reload and try again." };
+    return { ok: false, error: "This proposal changed while you were editing. Reload and try again." };
   }
 
   const hash = hashContent(content);
@@ -190,21 +195,27 @@ export async function updateConsignment(input: {
       type: "consignment_revised",
       payload: { consignmentId: deal.id, title: content.overview.title, versionNo, byName: me.displayName },
     });
-    await postToChat(tx, deal.connectionId, me.id, `✏️ Updated the consignment "${content.overview.title}". See what changed.`);
+    await postToChat(tx, deal.connectionId, me.id, `✏️ Updated the proposal "${content.overview.title}". See what changed.`);
   });
 
   refreshDeal(deal.id);
-  return { ok: true, versionNo, message: "Consignment updated. The creator can review the changes." };
+  return { ok: true, versionNo, message: "Proposal updated. The creator can review the changes." };
 }
 
 /* ------------------------------------------------------------------------------------------
  * Accept: binds to the exact version + hash. Final when both parties accepted the same hash.
  * ---------------------------------------------------------------------------------------- */
 
-export async function acceptVersion(input: { consignmentId: string; versionNo: number }): Promise<Result> {
+export async function acceptVersion(input: { consignmentId: string; versionNo: number; signedName?: string }): Promise<Result> {
   const me = await requireUser();
-  const parsed = z.object({ consignmentId: z.uuid(), versionNo: z.number().int().min(1) }).safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Invalid request." };
+  const parsed = z
+    .object({
+      consignmentId: z.uuid(),
+      versionNo: z.number().int().min(1),
+      signedName: z.string().trim().min(2, "Type your full name to sign").max(100).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   const [deal] = await db
     .select()
@@ -220,12 +231,12 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
   if (deal.status !== "awaiting_acceptance") {
     return {
       ok: false,
-      error: deal.status === "final" ? "This agreement is already final." : "There's no final agreement to accept yet.",
+      error: deal.status === "final" ? "This contract is already signed." : "There's no contract to sign yet.",
     };
   }
-  if (deal.influencerUserId !== me.id) return { ok: false, error: "Only the creator accepts the final agreement." };
+  if (deal.influencerUserId !== me.id) return { ok: false, error: "Only the creator signs at this step." };
   if (deal.currentVersion !== parsed.data.versionNo) {
-    return { ok: false, error: "The brand updated this consignment a moment ago. Review the changes, then accept." };
+    return { ok: false, error: "The brand changed this contract a moment ago. Review it, then sign." };
   }
 
   const [version] = await db
@@ -233,12 +244,20 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
     .from(consignmentVersions)
     .where(and(eq(consignmentVersions.consignmentId, deal.id), eq(consignmentVersions.versionNo, deal.currentVersion)));
   const otherId = deal.brandUserId === me.id ? deal.influencerUserId : deal.brandUserId;
+  // Contracts must be signed with a typed name.
+  if (version.contractText && !parsed.data.signedName) return { ok: false, error: "Type your full name to sign." };
 
   let finalized = false;
   await db.transaction(async (tx) => {
     await tx
       .insert(acceptances)
-      .values({ consignmentId: deal.id, versionNo: version.versionNo, userId: me.id, contentHash: version.contentHash })
+      .values({
+        consignmentId: deal.id,
+        versionNo: version.versionNo,
+        userId: me.id,
+        contentHash: version.contentHash,
+        signedName: parsed.data.signedName ?? null,
+      })
       .onConflictDoNothing();
 
     const accepted = await tx
@@ -272,7 +291,7 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
         payload: { consignmentId: deal.id, title: deal.title, versionNo: version.versionNo },
       });
     }
-    await postToChat(tx, deal.connectionId, me.id, `🔒 Accepted "${deal.title}". The consignment is final.`);
+    await postToChat(tx, deal.connectionId, me.id, `🔒 Signed the contract for "${deal.title}". It is now final.`);
   });
 
   if (!finalized) {
@@ -284,7 +303,7 @@ export async function acceptVersion(input: { consignmentId: string; versionNo: n
   }
 
   refreshDeal(deal.id);
-  return { ok: true, message: finalized ? "Accepted. The consignment is final." : "Accepted. Waiting for the other side." };
+  return { ok: true, message: finalized ? "Signed. The contract is final." : "Signed. Waiting for the other side." };
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -319,7 +338,7 @@ export async function addClauseComment(input: {
     );
   if (!deal) return { ok: false, error: "Deal not found." };
   if (!OPEN_STATUSES.includes(deal.status as (typeof OPEN_STATUSES)[number])) {
-    return { ok: false, error: "This consignment is closed." };
+    return { ok: false, error: "This proposal is closed." };
   }
   // The first comment moves the deal from "Awaiting creator" to "In discussion".
   if (deal.status === "sent") {
@@ -402,7 +421,7 @@ export async function markReadyToFinalize(input: { consignmentId: string }): Pro
   const me = await requireUser("influencer");
   const deal = await loadDeal(input.consignmentId, me.id);
   if (!deal || deal.influencerUserId !== me.id) return { ok: false, error: "Deal not found." };
-  if (!isNegotiating(deal.status)) return { ok: false, error: "This consignment isn't in discussion." };
+  if (!isNegotiating(deal.status)) return { ok: false, error: "This proposal isn't in discussion." };
   if (deal.creatorReadyAt) return { ok: true, message: "Already marked ready." };
 
   await db.transaction(async (tx) => {
@@ -412,7 +431,7 @@ export async function markReadyToFinalize(input: { consignmentId: string }): Pro
       type: "consignment_ready",
       payload: { consignmentId: deal.id, title: deal.title, byName: me.displayName },
     });
-    await postToChat(tx, deal.connectionId, me.id, `✅ Ready to finalize "${deal.title}". Over to you for the final agreement.`);
+    await postToChat(tx, deal.connectionId, me.id, `✅ Ready to finalize "${deal.title}". Over to you for the contract.`);
   });
   refreshDeal(deal.id);
   return { ok: true, message: "The brand has been told you're ready to finalize." };
@@ -436,7 +455,7 @@ export async function prepareFinalDraft(input: {
   if (instructions.length > 2000) return { ok: false, error: "Keep your instructions under 2,000 characters." };
   const deal = await loadDeal(input.consignmentId, me.id);
   if (!deal || deal.brandUserId !== me.id) return { ok: false, error: "Deal not found." };
-  if (!isNegotiating(deal.status)) return { ok: false, error: "This consignment isn't in discussion." };
+  if (!isNegotiating(deal.status)) return { ok: false, error: "This proposal isn't in discussion." };
 
   const versions = await db
     .select()
@@ -508,6 +527,8 @@ export async function sendFinalAgreement(input: {
   baseVersion: number;
   content: ConsignmentContent;
   resolution: ResolutionItem[];
+  /** The brand signer's typed full name. */
+  signedName: string;
 }): Promise<Result> {
   const me = await requireUser("brand");
   const parsed = z
@@ -516,13 +537,14 @@ export async function sendFinalAgreement(input: {
       baseVersion: z.number().int().min(1),
       content: consignmentContentSchema,
       resolution: z.array(resolutionItemSchema).max(60),
+      signedName: z.string().trim().min(2, "Type your full name to sign").max(100),
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
 
   const deal = await loadDeal(parsed.data.consignmentId, me.id);
   if (!deal || deal.brandUserId !== me.id) return { ok: false, error: "Deal not found." };
-  if (!isNegotiating(deal.status)) return { ok: false, error: "This consignment isn't in discussion." };
+  if (!isNegotiating(deal.status)) return { ok: false, error: "This proposal isn't in discussion." };
   if (deal.currentVersion !== parsed.data.baseVersion) {
     return { ok: false, error: "The terms changed while you were preparing this. Draft it again." };
   }
@@ -534,7 +556,22 @@ export async function sendFinalAgreement(input: {
     deliverables: parsed.data.content.deliverables.map((d) => ({ ...d, priority: "mandatory" })),
     terms: parsed.data.content.terms.map((t) => ({ ...t, priority: "mandatory" })),
   };
-  const hash = hashContent(content);
+  // The contract = the brand's template (or our sample) + Schedule A, frozen now.
+  const [brand] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, me.id));
+  const [creatorProfile] = await db
+    .select({ handle: influencerProfiles.handle, name: users.displayName })
+    .from(influencerProfiles)
+    .innerJoin(users, eq(users.id, influencerProfiles.userId))
+    .where(eq(influencerProfiles.userId, deal.influencerUserId));
+  const contractText = renderContract(brand?.contractTemplate, {
+    brandName: brand?.brandName ?? me.displayName,
+    companyName: brand?.companyName,
+    creatorName: creatorProfile?.name ?? "the Creator",
+    creatorHandle: creatorProfile?.handle,
+    content,
+    effectiveDate: new Date(),
+  });
+  const hash = hashContract(content, contractText);
   const versionNo = deal.currentVersion + 1;
 
   await db.transaction(async (tx) => {
@@ -545,10 +582,18 @@ export async function sendFinalAgreement(input: {
       contentHash: hash,
       isFinal: true,
       resolution: parsed.data.resolution,
+      contractText,
       createdBy: me.id,
-      changeNote: "Final agreement",
+      changeNote: "Contract",
     });
-    await tx.insert(acceptances).values({ consignmentId: deal.id, versionNo, userId: me.id, contentHash: hash });
+    // Sending = the brand signing.
+    await tx.insert(acceptances).values({
+      consignmentId: deal.id,
+      versionNo,
+      userId: me.id,
+      contentHash: hash,
+      signedName: parsed.data.signedName,
+    });
     await tx
       .update(consignments)
       .set({ currentVersion: versionNo, status: "awaiting_acceptance", creatorReadyAt: null, title: content.overview.title })
@@ -558,11 +603,58 @@ export async function sendFinalAgreement(input: {
       type: "final_agreement_sent",
       payload: { consignmentId: deal.id, title: content.overview.title, byName: me.displayName },
     });
-    await postToChat(tx, deal.connectionId, me.id, `📝 Sent the final agreement for "${content.overview.title}". Please review and accept.`);
+    await postToChat(tx, deal.connectionId, me.id, `📝 Signed and sent the contract for "${content.overview.title}". Please review and sign.`);
   });
 
   refreshDeal(deal.id);
-  return { ok: true, message: "Final agreement sent." };
+  return { ok: true, message: "Contract signed and sent." };
+}
+
+/**
+ * Brand only. Gemini compares the brand's contract template with the reviewed terms and
+ * returns contradictions to fix before signing. Read-only: nothing is saved.
+ */
+export async function checkTemplateConflicts(input: {
+  content: ConsignmentContent;
+}): Promise<Result<{ issues: ContractIssue[]; usingSample: boolean }>> {
+  const me = await requireUser("brand");
+  const parsed = consignmentContentSchema.safeParse(input.content);
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+  const [brand] = await db
+    .select({ template: brandProfiles.contractTemplate })
+    .from(brandProfiles)
+    .where(eq(brandProfiles.userId, me.id));
+  const template = brand?.template ?? DEFAULT_CONTRACT_TEMPLATE;
+  try {
+    const issues = await checkContractConflicts(template, parsed.data);
+    return { ok: true, issues, usingSample: !brand?.template };
+  } catch (e) {
+    return { ok: false, error: e instanceof AiError ? e.message : "Couldn't check the template right now." };
+  }
+}
+
+/** Builds the full contract text for a preview before signing (same function used at send time). */
+export async function previewContract(input: { consignmentId: string; content: ConsignmentContent }): Promise<Result<{ text: string }>> {
+  const me = await requireUser("brand");
+  const parsed = consignmentContentSchema.safeParse(input.content);
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+  const deal = await loadDeal(input.consignmentId, me.id);
+  if (!deal || deal.brandUserId !== me.id) return { ok: false, error: "Deal not found." };
+  const [brand] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, me.id));
+  const [creator] = await db
+    .select({ handle: influencerProfiles.handle, name: users.displayName })
+    .from(influencerProfiles)
+    .innerJoin(users, eq(users.id, influencerProfiles.userId))
+    .where(eq(influencerProfiles.userId, deal.influencerUserId));
+  const text = renderContract(brand?.contractTemplate, {
+    brandName: brand?.brandName ?? me.displayName,
+    companyName: brand?.companyName,
+    creatorName: creator?.name ?? "the Creator",
+    creatorHandle: creator?.handle,
+    content: parsed.data,
+    effectiveDate: new Date(),
+  });
+  return { ok: true, text };
 }
 
 /** Creator only. Sends the final agreement back to discussion with a reason. */
@@ -575,7 +667,7 @@ export async function requestChanges(input: { consignmentId: string; reason: str
 
   const deal = await loadDeal(parsed.data.consignmentId, me.id);
   if (!deal || deal.influencerUserId !== me.id) return { ok: false, error: "Deal not found." };
-  if (deal.status !== "awaiting_acceptance") return { ok: false, error: "There's no final agreement to change." };
+  if (deal.status !== "awaiting_acceptance") return { ok: false, error: "There's no contract to change." };
 
   const [version] = await db
     .select({ id: consignmentVersions.id })
@@ -589,14 +681,14 @@ export async function requestChanges(input: { consignmentId: string; reason: str
       clauseKey: "general",
       userId: me.id,
       kind: "comment",
-      body: `Requested changes to the final agreement: ${parsed.data.reason}`,
+      body: `Requested changes to the contract: ${parsed.data.reason}`,
     });
     await tx.insert(notifications).values({
       userId: deal.brandUserId,
       type: "final_changes_requested",
       payload: { consignmentId: deal.id, title: deal.title, byName: me.displayName, reason: parsed.data.reason },
     });
-    await postToChat(tx, deal.connectionId, me.id, `↩️ Asked for changes to the final agreement for "${deal.title}".`);
+    await postToChat(tx, deal.connectionId, me.id, `↩️ Asked for changes to the contract for "${deal.title}".`);
   });
 
   refreshDeal(deal.id);

@@ -23,3 +23,8 @@ export function canonicalJson(value: unknown): string {
 export function hashContent(content: ConsignmentContent): string {
   return createHash("sha256").update(canonicalJson(content)).digest("hex");
 }
+
+/** Contracts: the fingerprint covers the agreed terms AND the full legal text (template included). */
+export function hashContract(content: ConsignmentContent, contractText: string): string {
+  return createHash("sha256").update(canonicalJson({ content, contractText })).digest("hex");
+}

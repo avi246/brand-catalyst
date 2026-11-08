@@ -45,8 +45,8 @@ export default async function DashboardPage() {
   const stats = [
     { label: "Invitations to answer", hint: "Others invited you", value: toAnswer.n, icon: Inbox, highlight: toAnswer.n > 0 },
     { label: "Invitations you sent", hint: "Waiting for them to accept", value: sentPending.n, icon: Send, highlight: false },
-    { label: "Deals in negotiation", hint: "Proposal sent or changes in progress", value: negotiating.n, icon: Handshake, highlight: false },
-    { label: "Locked deals", hint: "Both sides accepted the same version", value: locked.n, icon: Lock, highlight: false },
+    { label: "Proposals in progress", hint: "Sent, in discussion, or contract out for signing", value: negotiating.n, icon: Handshake, highlight: false },
+    { label: "Signed contracts", hint: "Signed by both sides", value: locked.n, icon: Lock, highlight: false },
   ];
 
   return (
@@ -129,8 +129,8 @@ export default async function DashboardPage() {
               {[
                 ["Discover", "Search and see match reasons."],
                 ["Invite", "Messaging unlocks only after the other side accepts."],
-                ["Propose", "The brand sends a consignment: clause by clause, with priorities."],
-                ["Negotiate and lock", "Every change is a new version. Final when both accept the same one."],
+                ["Propose", "The brand sends a proposal: clause by clause, with priorities."],
+                ["Negotiate and sign", "Settle the terms in comments, then both sides sign the contract."],
               ].map(([title, body], i) => (
                 <li key={title} className="flex gap-3">
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium">

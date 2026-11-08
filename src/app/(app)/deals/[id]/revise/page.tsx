@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { getDealForUser } from "@/lib/consignments/queries";
 
-export const metadata = { title: "Edit consignment" };
+export const metadata = { title: "Edit proposal" };
 
 /** Brand only: edit the consignment in response to the creator's comments. */
 export default async function EditDealPage({ params }: PageProps<"/deals/[id]/revise">) {
@@ -17,7 +17,7 @@ export default async function EditDealPage({ params }: PageProps<"/deals/[id]/re
   return (
     <>
       <PageHeader
-        title="Edit consignment"
+        title="Edit proposal"
         description={`Change any term in response to ${view.creator.name}'s comments. They'll see exactly what changed.`}
       />
       <ConsignmentEditor

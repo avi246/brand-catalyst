@@ -15,7 +15,8 @@
     "db:embed": "tsx scripts/embed-profiles.ts",
     "test:ai": "node --conditions=react-server --env-file=.env.local --import tsx scripts/smoke-finalize.ts",
     "test:search": "node --conditions=react-server --env-file=.env.local --import tsx scripts/smoke-discover.ts",
-    "test:deals": "node --conditions=react-server --import tsx scripts/smoke-consignment.ts"
+    "test:deals": "node --conditions=react-server --import tsx scripts/smoke-consignment.ts",
+    "test:contract": "node --conditions=react-server --env-file=.env.local --import tsx scripts/smoke-contract.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

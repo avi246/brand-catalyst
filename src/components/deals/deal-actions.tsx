@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Check, CheckCheck, FileSignature, MessageCircleQuestion, PenLine, ThumbsUp, Undo2, X } from "lucide-react";
+import { CheckCheck, FileSignature, MessageCircleQuestion, PenLine, ThumbsUp, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   acceptVersion,
@@ -17,9 +18,9 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The main buttons on a consignment, by phase.
- *  Discussion:      creator -> Ready to finalize / Decline.  brand -> Prepare final agreement / Edit terms / Cancel.
- *  Final agreement: creator -> Accept / Request changes / Decline.  brand -> Cancel (waiting).
+ * The main buttons on a proposal, by phase.
+ *  Discussion: creator -> Ready to finalize / Decline.  brand -> Prepare contract / Edit terms / Cancel.
+ *  Contract:   creator -> Sign / Request changes / Decline.  brand -> Cancel (waiting).
  */
 export function DealActions({
   consignmentId,
@@ -27,17 +28,21 @@ export function DealActions({
   role,
   phase,
   creatorReady,
+  signerName,
 }: {
   consignmentId: string;
   versionNo: number;
   role: "brand" | "influencer";
   phase: "discussion" | "final";
   creatorReady: boolean;
+  signerName: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState<null | "accept" | "close" | "changes">(null);
   const [reason, setReason] = useState("");
+  const [name, setName] = useState(signerName);
+  const [agree, setAgree] = useState(false);
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string; error?: string }>) =>
     start(async () => {
@@ -54,7 +59,7 @@ export function DealActions({
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">
-          {role === "brand" ? "Cancel this consignment for both sides?" : "Decline and end this discussion?"}
+          {role === "brand" ? "Cancel this proposal for both sides?" : "Decline and end this discussion?"}
         </span>
         <Button variant="destructive" disabled={pending} onClick={() => run(() => cancelConsignment({ consignmentId }))}>
           Yes, {role === "brand" ? "cancel" : "decline"}
@@ -68,14 +73,23 @@ export function DealActions({
 
   if (confirming === "accept") {
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Accepting makes this agreement final for both sides.</span>
-        <Button disabled={pending} onClick={() => run(() => acceptVersion({ consignmentId, versionNo }))}>
-          <Check /> Yes, accept
-        </Button>
-        <Button variant="ghost" onClick={() => setConfirming(null)}>
-          Not yet
-        </Button>
+      <div className="flex w-full flex-col gap-2 lg:w-[26rem]">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" aria-label="Your full name" autoFocus />
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5" />
+          I&apos;ve read the whole contract and I agree to sign it.
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirming(null)}>
+            Not yet
+          </Button>
+          <Button
+            disabled={pending || !agree || name.trim().length < 2}
+            onClick={() => run(() => acceptVersion({ consignmentId, versionNo, signedName: name }))}
+          >
+            <PenLine /> Sign contract
+          </Button>
+        </div>
       </div>
     );
   }
@@ -89,7 +103,7 @@ export function DealActions({
           rows={2}
           maxLength={1000}
           autoFocus
-          placeholder="What needs to change before you can accept?"
+          placeholder="What needs to change before you can sign?"
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirming(null)}>
@@ -107,7 +121,7 @@ export function DealActions({
     return role === "influencer" ? (
       <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => setConfirming("accept")}>
-          <Check /> Accept agreement
+          <PenLine /> Sign contract
         </Button>
         <Button variant="outline" onClick={() => setConfirming("changes")}>
           <Undo2 /> Request changes
@@ -142,7 +156,7 @@ export function DealActions({
   ) : (
     <div className="flex flex-wrap items-center gap-2">
       <Link href={`/deals/${consignmentId}/finalize`} className={cn(buttonVariants({ variant: creatorReady ? "default" : "outline" }))}>
-        <FileSignature /> Prepare final agreement
+        <FileSignature /> Prepare contract
       </Link>
       <Link href={`/deals/${consignmentId}/revise`} className={cn(buttonVariants({ variant: creatorReady ? "outline" : "default" }))}>
         <PenLine /> Edit terms

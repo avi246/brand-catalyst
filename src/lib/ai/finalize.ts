@@ -91,7 +91,7 @@ export async function draftFinalAgreement(input: {
     schema: draftSchema,
     timeoutMs: 60_000,
     temperature: 0,
-    what: "Drafting the final agreement",
+    what: "Settling the proposal",
   });
 
   // Belt and braces: enforce the rules we can check in code.

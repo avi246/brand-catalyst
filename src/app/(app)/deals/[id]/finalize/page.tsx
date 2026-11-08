@@ -5,7 +5,7 @@ import { aiConfigured } from "@/lib/ai/gemini";
 import { getDealForUser } from "@/lib/consignments/queries";
 import { FinalizeWorkspace } from "./finalize-workspace";
 
-export const metadata = { title: "Prepare final agreement" };
+export const metadata = { title: "Prepare contract" };
 
 /** Brand only: turn the negotiated terms + discussion into the clean final agreement. */
 export default async function FinalizePage({ params }: PageProps<"/deals/[id]/finalize">) {
@@ -26,8 +26,8 @@ export default async function FinalizePage({ params }: PageProps<"/deals/[id]/fi
   return (
     <>
       <PageHeader
-        title="Prepare final agreement"
-        description={`Turn the discussion with ${view.creator.name} into a clean agreement they can accept. You review everything before it's sent.`}
+        title="Prepare contract"
+        description={`Settle the proposal with ${view.creator.name}, then sign the contract: your template plus the agreed terms. You review everything before it's sent.`}
       />
       <FinalizeWorkspace
         consignmentId={id}
@@ -37,6 +37,7 @@ export default async function FinalizePage({ params }: PageProps<"/deals/[id]/fi
         commentCount={view.comments.length}
         commentText={commentText}
         aiAvailable={aiConfigured()}
+        signerName={me.displayName}
       />
     </>
   );

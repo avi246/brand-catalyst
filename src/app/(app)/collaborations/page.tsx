@@ -47,7 +47,7 @@ export default async function CollaborationsPage() {
     <>
       <PageHeader
         title="Collaborations"
-        description="Every relationship moves left to right: invitation, conversation, consignment, discussion, accepted."
+        description="Every relationship moves left to right: invitation, conversation, proposal, discussion, signed contract."
       />
 
       {empty ? (
@@ -73,22 +73,22 @@ export default async function CollaborationsPage() {
                 <InvitationCard key={r.id} row={r} />
               ))}
             </Column>
-            <Column title="Connected" count={connected.length} hint="No consignment in progress">
+            <Column title="Connected" count={connected.length} hint="No proposal in progress">
               {connected.map((r) => (
                 <ConnectedCard key={r.id} row={r} isBrand={me.role === "brand"} />
               ))}
             </Column>
-            <Column title="Awaiting creator" count={byStatus("sent").length} hint="Sent, not discussed yet">
+            <Column title="Proposal sent" count={byStatus("sent").length} hint="Not discussed yet">
               {byStatus("sent").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
             </Column>
-            <Column title="In discussion" count={byStatus("negotiating", "awaiting_acceptance").length} hint="Discussing, or final agreement sent">
+            <Column title="In discussion" count={byStatus("negotiating", "awaiting_acceptance").length} hint="Discussing, or contract sent">
               {byStatus("negotiating", "awaiting_acceptance").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
             </Column>
-            <Column title="Accepted" count={byStatus("final", "in_progress", "completed").length} hint="Final, terms locked">
+            <Column title="Signed" count={byStatus("final", "in_progress", "completed").length} hint="Contract signed by both">
               {byStatus("final", "in_progress", "completed").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
@@ -192,7 +192,7 @@ function ConnectedCard({ row, isBrand }: { row: ConnectionRow; isBrand: boolean 
         <RelationActions otherUserId={row.other.id} otherName={row.other.name} state={{ kind: "connected", connectionId: row.id }} size="sm" />
         {isBrand && (
           <Link href={`/deals/new?connection=${row.id}`} className={cn(buttonVariants({ size: "sm" }))}>
-            <FilePlus2 /> Consignment
+            <FilePlus2 /> Proposal
           </Link>
         )}
       </div>

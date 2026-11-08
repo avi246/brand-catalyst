@@ -152,6 +152,8 @@ export const brandProfiles = pgTable("brand_profiles", {
   preferredNiches: text("preferred_niches").array().notNull().default([]),
   preferredPlatforms: text("preferred_platforms").array().notNull().default([]),
   paymentTerms: text("payment_terms"),
+  /** The brand's standard contract text with {{placeholders}}. Null = use our sample template. */
+  contractTemplate: text("contract_template"),
   embedding: vector("embedding", { dimensions: EMBEDDING_DIMS }),
   embeddingSource: text("embedding_source"),
   ...timestamps,
@@ -282,6 +284,8 @@ export const consignmentVersions = pgTable(
     isFinal: boolean("is_final").notNull().default(false),
     /** For final agreements: how each term was resolved, with the comments it came from. */
     resolution: jsonb("resolution"),
+    /** For contracts: the full legal text (brand template + Schedule A), frozen at send time. */
+    contractText: text("contract_text"),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
@@ -321,6 +325,8 @@ export const acceptances = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     contentHash: text("content_hash").notNull(),
+    /** Typed full name when signing a contract. */
+    signedName: text("signed_name"),
     acceptedAt: timestamp("accepted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

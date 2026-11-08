@@ -39,12 +39,15 @@ export function ConsignmentEditor({
   mode,
   otherName,
   blockedReason,
+  onReview,
 }: {
   initial: ConsignmentContent;
   mode: Mode;
   otherName: string;
   /** When set, the send button is disabled and this explains why. */
   blockedReason?: string;
+  /** Final mode: instead of sending, hand the terms to the contract review step. */
+  onReview?: (content: ConsignmentContent) => void;
 }) {
   const isFinal = mode.kind === "final";
   const router = useRouter();
@@ -67,8 +70,12 @@ export function ConsignmentEditor({
         if (!res.ok) return void toast.error(res.error);
         toast.success(res.message ?? "Sent");
         router.push(`/deals/${res.id}`);
+      } else if (mode.kind === "final" && onReview) {
+        onReview(c);
+        return;
       } else if (mode.kind === "final") {
         const res = await sendFinalAgreement({
+          signedName: "",
           consignmentId: mode.consignmentId,
           baseVersion: mode.baseVersion,
           content: c,
@@ -237,7 +244,7 @@ export function ConsignmentEditor({
             <CardTitle>Terms</CardTitle>
             <CardDescription>
               {isFinal ? (
-                "Write each term as a definite commitment. Everything in the final agreement is binding."
+                "Write each term as a definite commitment. These become Schedule A of the contract."
               ) : (
                 <>
               Mark each term <strong>Mandatory</strong> (non-negotiable), <strong>Negotiable</strong> (open to discussion) or{" "}
@@ -306,9 +313,9 @@ export function ConsignmentEditor({
         <p className={cn("hidden text-xs sm:block", blockedReason ? "font-medium text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>
           {blockedReason ??
             (mode.kind === "create"
-              ? `${otherName} can comment on each term. When you're both happy, you'll send a clean final agreement.`
+              ? `${otherName} can comment on each term. When you're both happy, you'll send the contract to sign.`
               : mode.kind === "final"
-                ? `${otherName} will see this as a clean document to accept. Once accepted, it can't change.`
+                ? "Next: preview the full contract (your template + these terms), check for conflicts, and sign."
                 : `${otherName} will see exactly what you changed.`)}
         </p>
         <Button type="submit" disabled={pending || !!blockedReason}>
@@ -317,7 +324,7 @@ export function ConsignmentEditor({
             : mode.kind === "create"
               ? `Send to ${otherName}`
               : mode.kind === "final"
-                ? `Send final agreement to ${otherName}`
+                ? "Review contract →"
                 : "Save and send update"}
         </Button>
       </div>

@@ -5,6 +5,7 @@ import { AlertTriangle, FileText, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { ConsignmentEditor } from "@/components/deals/consignment-editor";
 import { ResolutionList } from "@/components/deals/resolution-list";
+import { ContractReview } from "./contract-review";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,7 @@ export function FinalizeWorkspace({
   commentCount,
   commentText,
   aiAvailable,
+  signerName,
 }: {
   consignmentId: string;
   baseVersion: number;
@@ -39,8 +41,11 @@ export function FinalizeWorkspace({
   commentCount: number;
   commentText: Record<string, { author: string; body: string }>;
   aiAvailable: boolean;
+  signerName: string;
 }) {
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Step 2: the reviewed terms, shown as the full contract to sign.
+  const [reviewing, setReviewing] = useState<ConsignmentContent | null>(null);
   const [includeChat, setIncludeChat] = useState(true);
   const [settled, setSettled] = useState(false);
   const [instructions, setInstructions] = useState("");
@@ -61,6 +66,24 @@ export function FinalizeWorkspace({
   };
 
   const unresolved = draft?.resolution.filter((r) => r.outcome === "unresolved") ?? [];
+
+  if (draft && reviewing) {
+    return (
+      <ContractReview
+        consignmentId={consignmentId}
+        baseVersion={baseVersion}
+        content={reviewing}
+        resolution={draft.resolution}
+        creatorName={creatorName}
+        defaultSigner={signerName}
+        onBack={() => {
+          // Keep the edits: reopen the editor with the reviewed terms.
+          setDraft({ ...draft, content: reviewing, id: Date.now() });
+          setReviewing(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,7 +161,11 @@ export function FinalizeWorkspace({
             initial={draft.content}
             mode={{ kind: "final", consignmentId, baseVersion, resolution: draft.resolution }}
             otherName={creatorName}
-            blockedReason={unresolved.length > 0 && !settled ? "Confirm you've settled the open points above before sending." : undefined}
+            blockedReason={unresolved.length > 0 && !settled ? "Confirm you've settled the open points above before continuing." : undefined}
+            onReview={(c) => {
+              setReviewing(c);
+              window.scrollTo({ top: 0 });
+            }}
           />
         </>
       )}
