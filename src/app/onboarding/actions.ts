@@ -3,6 +3,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { refreshProfileEmbedding } from "@/lib/ai/embeddings";
 import { z } from "zod";
 import { db } from "@/db";
 import { brandProfiles, influencerProfiles, socialAccounts, users } from "@/db/schema";
@@ -92,7 +94,7 @@ export async function completeOnboarding(
   const avatarUrl = clerkUser?.imageUrl ?? null;
 
   try {
-    await db.transaction(async (tx) => {
+    const newUserId = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(users)
         .values({
@@ -138,7 +140,10 @@ export async function completeOnboarding(
           country: data.country,
         });
       }
+      return user.id;
     });
+    // Compute the profile's Gemini embedding after the response, so signup isn't slowed down.
+    after(() => refreshProfileEmbedding(newUserId));
   } catch (err) {
     // 23505 = unique_violation (the only user-facing case is a taken handle)
     const code = (err as { cause?: { code?: string }; code?: string }).cause?.code ??

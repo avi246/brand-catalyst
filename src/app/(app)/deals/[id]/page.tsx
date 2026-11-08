@@ -2,13 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Ban, CheckCircle2, FilePlus2, Lock, MessageSquare, Sparkles } from "lucide-react";
 import { DealActions, TermComments, type ThreadComment } from "@/components/deals/deal-actions";
+import { FinalDocument } from "@/components/deals/final-document";
+import { ResolutionList } from "@/components/deals/resolution-list";
 import { PriorityBadge } from "@/components/deals/priority-badge";
 import { DealStatusBadge } from "@/components/deals/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { getDealForUser } from "@/lib/consignments/queries";
-import { diffContent, SECTION_LABEL, TERM_SECTIONS } from "@/lib/consignments/schema";
+import { diffContent, SECTION_LABEL, TERM_SECTIONS, type ResolutionItem } from "@/lib/consignments/schema";
 import { PLATFORM_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -29,14 +31,17 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
   const view = await getDealForUser(id, me.id);
   if (!view) notFound();
 
-  const { deal, current, versions, acceptances, comments, people, brand, creator, role } = view;
+  const { deal, current, versions, comments, people, brand, creator, role } = view;
   const c = current.content;
   const open = deal.status === "sent" || deal.status === "negotiating";
   const accepted = deal.status === "final" || deal.status === "in_progress" || deal.status === "completed";
   const closed = deal.status === "cancelled";
-
-  const myAcceptance = acceptances.some(
-    (a) => a.userId === me.id && a.versionNo === current.versionNo && a.contentHash === current.contentHash,
+  const awaiting = deal.status === "awaiting_acceptance";
+  // Once the clean final agreement exists (sent or accepted), show it as a document.
+  const showDocument = current.isFinal && (awaiting || accepted);
+  const resolution = (current.resolution ?? []) as ResolutionItem[];
+  const commentText = Object.fromEntries(
+    comments.map((x) => [x.id, { author: people.get(x.userId)?.name ?? "Someone", body: x.body }]),
   );
   const previous = versions.find((v) => v.versionNo === current.versionNo - 1);
   const changes = previous ? diffContent(previous.content, c) : [];
@@ -83,27 +88,45 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
             : "Nothing here is binding. The brand can send you a fresh consignment.",
       };
     }
+    if (awaiting) {
+      return role === "influencer"
+        ? {
+            tone: "you" as const,
+            title: `${brand.name} sent the final agreement. Read it, then accept, request changes or decline.`,
+            body: "It reflects what you agreed in the discussion. Once you accept, it can't change.",
+          }
+        : {
+            tone: "waiting" as const,
+            title: `Final agreement sent. Waiting for ${creator.name} to accept.`,
+            body: "They can accept it, send it back to discussion with a reason, or decline.",
+          };
+    }
     if (role === "influencer") {
       return {
-        tone: "you" as const,
-        title: changes.length
-          ? `${brand.name} updated the consignment. Review what changed, then accept or decline.`
-          : `${brand.name} sent you this consignment.`,
-        body: "Comment or ask under any term to negotiate. Accept when you're happy with every term.",
+        tone: deal.creatorReadyAt ? ("waiting" as const) : ("you" as const),
+        title: deal.creatorReadyAt
+          ? `You're ready. Waiting for ${brand.name} to send the final agreement.`
+          : changes.length
+            ? `${brand.name} updated the terms. Review what changed.`
+            : `${brand.name} sent you this consignment.`,
+        body: "Negotiate by commenting under any term. When you're happy, click Ready to finalize; you'll then get a clean agreement to accept.",
       };
     }
     return {
-      tone: newFromCreator.length ? ("you" as const) : ("waiting" as const),
-      title: newFromCreator.length
-        ? `${creator.name} left ${newFromCreator.length} comment${newFromCreator.length === 1 ? "" : "s"}${openQuestions ? ` (${openQuestions} question${openQuestions === 1 ? "" : "s"})` : ""}. Reply, or edit the consignment.`
-        : `Waiting for ${creator.name} to accept or comment.`,
-      body: "When you edit, they'll see exactly what changed before accepting.",
+      tone: newFromCreator.length || deal.creatorReadyAt ? ("you" as const) : ("waiting" as const),
+      title: deal.creatorReadyAt
+        ? `${creator.name} is ready to finalize. Prepare the final agreement.`
+        : newFromCreator.length
+          ? `${creator.name} left ${newFromCreator.length} comment${newFromCreator.length === 1 ? "" : "s"}${openQuestions ? ` (${openQuestions} question${openQuestions === 1 ? "" : "s"})` : ""}. Reply, or edit the terms.`
+          : `Waiting for ${creator.name} to comment or mark ready.`,
+      body: "When the discussion is settled, prepare the final agreement. Gemini can draft it from the comments.",
     };
   })();
 
   const steps = [
     { label: "Sent", done: true },
     { label: "In discussion", done: deal.status !== "sent" || comments.length > 0 },
+    { label: "Final agreement", done: awaiting || accepted },
     { label: closed ? "Closed" : "Accepted", done: accepted || closed },
   ];
 
@@ -180,18 +203,72 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
                 <FilePlus2 /> Start a new consignment
               </Link>
             )}
-            {open && (
+            {(open || awaiting) && (
               <DealActions
                 consignmentId={deal.id}
                 versionNo={current.versionNo}
                 role={role}
-                canAccept={!myAcceptance}
+                phase={awaiting ? "final" : "discussion"}
+                creatorReady={!!deal.creatorReadyAt}
               />
             )}
           </div>
         </CardContent>
       </Card>
 
+      {showDocument ? (
+        <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+          <div className="flex flex-col gap-6">
+            <FinalDocument content={c} brandName={brand.name} creatorName={creator.name} />
+            {accepted && view.deliverables.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Deliverables tracker</CardTitle>
+                  <CardDescription>Created when the agreement was accepted. Status updates arrive in a later milestone.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2 text-sm">
+                  {view.deliverables.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                      <span>{d.title}</span>
+                      <span className="text-muted-foreground">
+                        {d.status.replace("_", " ")}
+                        {d.dueAt && ` · due ${d.dueAt.toLocaleDateString("en", { month: "short", day: "numeric" })}`}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">How the discussion was settled</CardTitle>
+                <CardDescription>Each point with the comments it came from.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResolutionList items={resolution} commentText={commentText} />
+              </CardContent>
+            </Card>
+            {changes.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Changes from the negotiated terms</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2 text-sm">
+                  {changes.map((ch, i) => (
+                    <div key={i} className="rounded-lg border p-2">
+                      <p className="font-medium">{ch.label}</p>
+                      {ch.before && <p className="text-rose-800 line-through dark:text-rose-300">{ch.before}</p>}
+                      {ch.after && <p className="text-emerald-800 dark:text-emerald-300">{ch.after}</p>}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </aside>
+        </div>
+      ) : (
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         {/* ------------------------------ Main column: the terms ------------------------------ */}
         <div className="flex flex-col gap-6">
@@ -383,6 +460,7 @@ export default async function DealPage({ params }: PageProps<"/deals/[id]">) {
           </Card>
         </aside>
       </div>
+      )}
     </div>
   );
 }

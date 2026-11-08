@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createConsignment, updateConsignment } from "@/lib/actions/consignments";
+import { createConsignment, sendFinalAgreement, updateConsignment } from "@/lib/actions/consignments";
 import {
   PRIORITIES,
   PRIORITY_LABEL,
@@ -19,6 +19,7 @@ import {
   type ConsignmentContent,
   type Deliverable,
   type Priority,
+  type ResolutionItem,
   type Term,
 } from "@/lib/consignments/schema";
 import { NumberInput } from "@/components/number-input";
@@ -27,7 +28,9 @@ import { cn } from "@/lib/utils";
 
 type Mode =
   | { kind: "create"; connectionId: string }
-  | { kind: "revise"; consignmentId: string; baseVersion: number };
+  | { kind: "revise"; consignmentId: string; baseVersion: number }
+  // The clean final agreement: no priorities, sent for the creator to accept.
+  | { kind: "final"; consignmentId: string; baseVersion: number; resolution: ResolutionItem[] };
 
 const newKey = (prefix: string) => `${prefix}${crypto.randomUUID().slice(0, 8)}`;
 
@@ -35,11 +38,15 @@ export function ConsignmentEditor({
   initial,
   mode,
   otherName,
+  blockedReason,
 }: {
   initial: ConsignmentContent;
   mode: Mode;
   otherName: string;
+  /** When set, the send button is disabled and this explains why. */
+  blockedReason?: string;
 }) {
+  const isFinal = mode.kind === "final";
   const router = useRouter();
   const [c, setC] = useState<ConsignmentContent>(initial);
   const [changeNote, setChangeNote] = useState("");
@@ -60,6 +67,16 @@ export function ConsignmentEditor({
         if (!res.ok) return void toast.error(res.error);
         toast.success(res.message ?? "Sent");
         router.push(`/deals/${res.id}`);
+      } else if (mode.kind === "final") {
+        const res = await sendFinalAgreement({
+          consignmentId: mode.consignmentId,
+          baseVersion: mode.baseVersion,
+          content: c,
+          resolution: mode.resolution,
+        });
+        if (!res.ok) return void toast.error(res.error);
+        toast.success(res.message ?? "Sent");
+        router.push(`/deals/${mode.consignmentId}`);
       } else {
         const res = await updateConsignment({
           consignmentId: mode.consignmentId,
@@ -109,9 +126,11 @@ export function ConsignmentEditor({
             <CardTitle>Compensation</CardTitle>
             <CardDescription>The total fee and how it&apos;s paid.</CardDescription>
           </div>
-          <div className="w-44 shrink-0">
-            <PrioritySelect value={c.fee.priority} onChange={(priority) => setFee({ priority })} />
-          </div>
+          {!isFinal && (
+            <div className="w-44 shrink-0">
+              <PrioritySelect value={c.fee.priority} onChange={(priority) => setFee({ priority })} />
+            </div>
+          )}
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-[1fr_6rem_2fr]">
           <Field label="Fee" name="fee">
@@ -187,9 +206,11 @@ export function ConsignmentEditor({
               <Field label="Publish by" name={`${d.key}-pub`}>
                 <Input id={`${d.key}-pub`} type="date" value={d.publishBy ?? ""} onChange={(e) => setDeliverable(d.key, { publishBy: e.target.value || null })} />
               </Field>
-              <Field label="Priority" name={`${d.key}-prio`}>
-                <PrioritySelect value={d.priority} onChange={(priority) => setDeliverable(d.key, { priority })} />
-              </Field>
+              {!isFinal && (
+                <Field label="Priority" name={`${d.key}-prio`}>
+                  <PrioritySelect value={d.priority} onChange={(priority) => setDeliverable(d.key, { priority })} />
+                </Field>
+              )}
               <Field label="Notes" name={`${d.key}-notes`} className="sm:col-span-1 lg:col-span-2 xl:col-span-5">
                 <Input id={`${d.key}-notes`} value={d.notes} onChange={(e) => setDeliverable(d.key, { notes: e.target.value })} placeholder="30–45 seconds, show the product on skin" />
               </Field>
@@ -215,8 +236,14 @@ export function ConsignmentEditor({
           <div className="space-y-1">
             <CardTitle>Terms</CardTitle>
             <CardDescription>
+              {isFinal ? (
+                "Write each term as a definite commitment. Everything in the final agreement is binding."
+              ) : (
+                <>
               Mark each term <strong>Mandatory</strong> (non-negotiable), <strong>Negotiable</strong> (open to discussion) or{" "}
               <strong>Preferred</strong> (nice to have).
+                </>
+              )}
             </CardDescription>
           </div>
           <Button
@@ -226,7 +253,7 @@ export function ConsignmentEditor({
             onClick={() =>
               setC((x) => ({
                 ...x,
-                terms: [...x.terms, { key: newKey("t"), section: "other", label: "", text: "", priority: "negotiable" }],
+                terms: [...x.terms, { key: newKey("t"), section: "other", label: "", text: "", priority: isFinal ? "mandatory" : "negotiable" }],
               }))
             }
           >
@@ -246,7 +273,7 @@ export function ConsignmentEditor({
                 >
                   {TERM_SECTIONS.map((s) => <option key={s} value={s}>{SECTION_LABEL[s]}</option>)}
                 </NativeSelect>
-                <PrioritySelect value={t.priority} onChange={(priority) => setTerm(t.key, { priority })} />
+                {!isFinal && <PrioritySelect value={t.priority} onChange={(priority) => setTerm(t.key, { priority })} />}
                 <Button
                   type="button"
                   variant="ghost"
@@ -276,13 +303,22 @@ export function ConsignmentEditor({
       )}
 
       <div className="sticky bottom-0 -mx-4 flex items-center justify-between gap-3 border-t bg-background/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-        <p className="hidden text-xs text-muted-foreground sm:block">
-          {mode.kind === "create"
-            ? `${otherName} can comment on each term, then accept or decline. It's final once they accept.`
-            : `${otherName} will see exactly what you changed before accepting.`}
+        <p className={cn("hidden text-xs sm:block", blockedReason ? "font-medium text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>
+          {blockedReason ??
+            (mode.kind === "create"
+              ? `${otherName} can comment on each term. When you're both happy, you'll send a clean final agreement.`
+              : mode.kind === "final"
+                ? `${otherName} will see this as a clean document to accept. Once accepted, it can't change.`
+                : `${otherName} will see exactly what you changed.`)}
         </p>
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : mode.kind === "create" ? `Send to ${otherName}` : "Save and send update"}
+        <Button type="submit" disabled={pending || !!blockedReason}>
+          {pending
+            ? "Sending…"
+            : mode.kind === "create"
+              ? `Send to ${otherName}`
+              : mode.kind === "final"
+                ? `Send final agreement to ${otherName}`
+                : "Save and send update"}
         </Button>
       </div>
     </form>

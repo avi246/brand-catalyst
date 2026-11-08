@@ -30,7 +30,7 @@ export default async function DashboardPage() {
     db
       .select({ n: count() })
       .from(consignments)
-      .where(and(myDeals, inArray(consignments.status, ["sent", "negotiating"]))),
+      .where(and(myDeals, inArray(consignments.status, ["sent", "negotiating", "awaiting_acceptance"]))),
     db
       .select({ n: count() })
       .from(consignments)

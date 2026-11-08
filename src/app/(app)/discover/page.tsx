@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { MapPin, SearchX } from "lucide-react";
+import { MapPin, SearchX, Sparkles } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { NativeSelect } from "@/components/native-select";
 import { RelationActions } from "@/components/relation-actions";
@@ -14,7 +14,7 @@ import { brandProfiles, influencerProfiles, type User } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { getRelations } from "@/lib/connections";
 import { INDUSTRIES, NICHES, PLATFORM_LABEL, PLATFORMS } from "@/lib/constants";
-import { distinctCountries, searchBrands, searchCreators } from "@/lib/discover";
+import { distinctCountries, searchBrands, searchCreators, type Understood } from "@/lib/discover";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Discover" };
@@ -46,13 +46,11 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
     country: str(sp.country),
     minFollowers: num(sp.minFollowers),
     maxRate: num(sp.maxRate),
+    plain: str(sp.plain) === "1",
   };
-  const [mine] = await db
-    .select({ preferredNiches: brandProfiles.preferredNiches })
-    .from(brandProfiles)
-    .where(eq(brandProfiles.userId, me.id));
-  const [results, countries] = await Promise.all([
-    searchCreators(me.id, filters, mine?.preferredNiches ?? []),
+  const [mine] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, me.id));
+  const [{ results, understood, aiNote, rankedBy }, countries] = await Promise.all([
+    searchCreators(me, filters, mine ?? null),
     distinctCountries("creators"),
   ]);
   const relations = await getRelations(me.id, results.map((r) => r.user.id));
@@ -61,10 +59,15 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
     <>
       <PageHeader
         title="Discover creators"
-        description="Filter by niche, platform, audience size and price. Invite the ones who fit."
+        description="Describe who you need in plain English, or use the filters. Every creator gets a match score with reasons."
       />
       <FilterBar>
-        <Input name="q" defaultValue={filters.q} placeholder="Search name, handle, bio…" className="sm:col-span-2" />
+        <Input
+          name="q"
+          defaultValue={filters.q}
+          placeholder='Try "vegan skincare creators with a US audience under $500"'
+          className="sm:col-span-4 lg:col-span-8"
+        />
         <NativeSelect name="niche" defaultValue={filters.niche ?? ""} aria-label="Niche">
           <option value="">Any niche</option>
           {NICHES.map((n) => <option key={n}>{n}</option>)}
@@ -93,7 +96,7 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
         </NativeSelect>
       </FilterBar>
 
-      <ResultCount n={results.length} noun="creator" />
+      <SearchInsight understood={understood} aiNote={aiNote} rankedBy={rankedBy} q={filters.q} plain={filters.plain} n={results.length} noun="creator" />
 
       {results.length === 0 ? (
         <EmptyState icon={SearchX} title="No creators match" body="Try removing a filter or searching a broader term." />
@@ -102,6 +105,7 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
           {results.map((r) => (
             <Card key={r.user.id} className="flex flex-col">
               <CardContent className="flex flex-1 flex-col gap-4">
+                <MatchScore score={r.score} reasons={r.reasons} />
                 <div className="flex items-start gap-3">
                   <Avatar className="size-11">
                     {r.user.avatarUrl && <AvatarImage src={r.user.avatarUrl} alt="" />}
@@ -120,7 +124,6 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
 
                 <div className="flex flex-wrap gap-1.5">
                   <Badge>{r.profile.primaryNiche}</Badge>
-                  {r.fitsPreferred && <Badge variant="secondary">Fits your niches</Badge>}
                 </div>
 
                 <p className="line-clamp-2 text-sm text-muted-foreground">{r.profile.bio}</p>
@@ -155,14 +158,16 @@ async function CreatorSearch({ me, sp }: { me: User; sp: SP }) {
 /* ------------------------------ Creator view: find brands ------------------------------ */
 
 async function BrandSearch({ me, sp }: { me: User; sp: SP }) {
-  const filters = { q: str(sp.q), industry: str(sp.industry), country: str(sp.country), niche: str(sp.niche) };
-  const [mine] = await db
-    .select({ primary: influencerProfiles.primaryNiche, secondary: influencerProfiles.secondaryNiches })
-    .from(influencerProfiles)
-    .where(eq(influencerProfiles.userId, me.id));
-  const myNiches = mine ? [mine.primary, ...mine.secondary] : [];
-  const [results, countries] = await Promise.all([
-    searchBrands(me.id, filters, myNiches),
+  const filters = {
+    q: str(sp.q),
+    industry: str(sp.industry),
+    country: str(sp.country),
+    niche: str(sp.niche),
+    plain: str(sp.plain) === "1",
+  };
+  const [mine] = await db.select().from(influencerProfiles).where(eq(influencerProfiles.userId, me.id));
+  const [{ results, understood, aiNote, rankedBy }, countries] = await Promise.all([
+    searchBrands(me, filters, mine ?? null),
     distinctCountries("brands"),
   ]);
   const relations = await getRelations(me.id, results.map((r) => r.user.id));
@@ -171,10 +176,15 @@ async function BrandSearch({ me, sp }: { me: User; sp: SP }) {
     <>
       <PageHeader
         title="Discover brands"
-        description="Find brands looking for creators like you. Check who they are before you connect."
+        description="Describe the brands you want to work with, or use the filters. Every brand gets a match score with reasons."
       />
       <FilterBar>
-        <Input name="q" defaultValue={filters.q} placeholder="Search brand, product, industry…" className="sm:col-span-2" />
+        <Input
+          name="q"
+          defaultValue={filters.q}
+          placeholder='Try "sustainable fashion brands with budgets over $1,000"'
+          className="sm:col-span-4 lg:col-span-8"
+        />
         <NativeSelect name="industry" defaultValue={filters.industry ?? ""} aria-label="Industry">
           <option value="">Any industry</option>
           {INDUSTRIES.map((i) => <option key={i}>{i}</option>)}
@@ -189,7 +199,7 @@ async function BrandSearch({ me, sp }: { me: User; sp: SP }) {
         </NativeSelect>
       </FilterBar>
 
-      <ResultCount n={results.length} noun="brand" />
+      <SearchInsight understood={understood} aiNote={aiNote} rankedBy={rankedBy} q={filters.q} plain={filters.plain} n={results.length} noun="brand" />
 
       {results.length === 0 ? (
         <EmptyState icon={SearchX} title="No brands match" body="Try removing a filter or searching a broader term." />
@@ -198,6 +208,7 @@ async function BrandSearch({ me, sp }: { me: User; sp: SP }) {
           {results.map((r) => (
             <Card key={r.user.id} className="flex flex-col">
               <CardContent className="flex flex-1 flex-col gap-4">
+                <MatchScore score={r.score} reasons={r.reasons} />
                 <div className="flex items-start gap-3">
                   <Avatar className="size-11 rounded-lg">
                     {r.profile.logoUrl && <AvatarImage src={r.profile.logoUrl} alt="" />}
@@ -213,10 +224,6 @@ async function BrandSearch({ me, sp }: { me: User; sp: SP }) {
                   </div>
                   {r.user.isDemo && <Badge variant="outline">Demo</Badge>}
                 </div>
-
-                {r.fitsMyNiche && (
-                  <Badge variant="secondary" className="w-fit">Looking for your niche</Badge>
-                )}
 
                 <p className="line-clamp-3 text-sm text-muted-foreground">{r.profile.description}</p>
 
@@ -263,12 +270,93 @@ function FilterBar({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ResultCount({ n, noun }: { n: number; noun: string }) {
+/** Shows what Gemini understood from a plain-English search, and how results are ranked. */
+function SearchInsight({
+  understood,
+  aiNote,
+  rankedBy,
+  q,
+  plain,
+  n,
+  noun,
+}: {
+  understood: Understood;
+  aiNote: string | null;
+  rankedBy: "search" | "profile" | "rules";
+  q?: string;
+  plain?: boolean;
+  n: number;
+  noun: string;
+}) {
+  const ranking =
+    rankedBy === "search"
+      ? "Ranked by match to your search"
+      : rankedBy === "profile"
+        ? "Ranked by match to your profile"
+        : "Ranked by your preferences";
   return (
-    <p className="mb-4 text-sm text-muted-foreground">
-      {n} {noun}
-      {n === 1 ? "" : "s"}
-    </p>
+    <div className="mb-4 flex flex-col gap-2">
+      {understood.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-900 dark:bg-violet-950/20">
+          <Sparkles className="size-4 text-violet-600" />
+          <span className="text-muted-foreground">Gemini understood:</span>
+          {understood.map((u) => (
+            <Badge key={u.label} variant="outline" className="bg-background">
+              <span className="text-muted-foreground">{u.label}:</span> {u.value}
+            </Badge>
+          ))}
+          {q && (
+            <Link href={`/discover?q=${encodeURIComponent(q)}&plain=1`} className="ml-auto text-xs text-muted-foreground underline">
+              Search my exact words instead
+            </Link>
+          )}
+        </div>
+      )}
+      {plain && q && (
+        <p className="text-xs text-muted-foreground">
+          Matching your exact words.{" "}
+          <Link href={`/discover?q=${encodeURIComponent(q)}`} className="underline">
+            Let Gemini understand it
+          </Link>
+        </p>
+      )}
+      {aiNote && <p className="text-xs text-amber-700 dark:text-amber-300">{aiNote}</p>}
+      <p className="text-sm text-muted-foreground">
+        {n} {noun}
+        {n === 1 ? "" : "s"} · {ranking}
+      </p>
+    </div>
+  );
+}
+
+/** The 0-100 match score and its reasons, at the top of every card. */
+function MatchScore({ score, reasons }: { score: number; reasons: string[] }) {
+  const tone =
+    score >= 75
+      ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+      : score >= 55
+        ? "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200"
+        : "bg-muted text-muted-foreground";
+  return (
+    <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-2.5">
+      <span className={cn("grid size-11 shrink-0 place-items-center rounded-lg text-base font-semibold tabular-nums", tone)}>
+        {score}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium">Match score</p>
+        {reasons.length ? (
+          <ul className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
+            {reasons.map((r) => (
+              <li key={r} className="truncate" title={r}>
+                ✓ {r}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-0.5 text-xs text-muted-foreground">Fill in your profile for better reasons</p>
+        )}
+      </div>
+    </div>
   );
 }
 

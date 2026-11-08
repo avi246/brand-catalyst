@@ -26,6 +26,12 @@ function describe(type: string, payload: Record<string, unknown>) {
       return { icon: Lock, text: `"${payload.title}" was accepted and is now final.`, href: `/deals/${payload.consignmentId}` };
     case "consignment_comment":
       return { icon: MessageCircle, text: `${payload.byName ?? "Someone"} ${payload.kind === "question" ? "asked a question" : "commented"} on "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
+    case "consignment_ready":
+      return { icon: Check, text: `${payload.byName ?? "The creator"} is ready to finalize "${payload.title}". Prepare the final agreement.`, href: `/deals/${payload.consignmentId}` };
+    case "final_agreement_sent":
+      return { icon: FileText, text: `${payload.byName ?? "The brand"} sent the final agreement for "${payload.title}". Review and accept.`, href: `/deals/${payload.consignmentId}` };
+    case "final_changes_requested":
+      return { icon: MessageCircle, text: `${payload.byName ?? "The creator"} asked for changes to the final agreement for "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     case "consignment_cancelled":
       return { icon: X, text: `${payload.byName ?? "Someone"} ${payload.verb ?? "cancelled"} "${payload.title}".`, href: `/deals/${payload.consignmentId}` };
     default:

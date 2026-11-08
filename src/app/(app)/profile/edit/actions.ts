@@ -3,6 +3,8 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { refreshProfileEmbedding } from "@/lib/ai/embeddings";
 import { z } from "zod";
 import { db } from "@/db";
 import { brandProfiles, influencerProfiles, socialAccounts, users } from "@/db/schema";
@@ -190,6 +192,8 @@ export async function updateProfile(_prev: EditState, fd: FormData): Promise<Edi
     });
   }
 
+  // Re-embed the profile for matching, after the response (only if its text changed).
+  after(() => refreshProfileEmbedding(me.id));
   revalidatePath("/profile");
   revalidatePath("/dashboard");
   redirect("/profile");

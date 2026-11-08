@@ -80,8 +80,8 @@ export default async function CollaborationsPage() {
                 <DealCard key={d.id} deal={d} />
               ))}
             </Column>
-            <Column title="In discussion" count={byStatus("negotiating").length} hint="Comments or brand updates">
-              {byStatus("negotiating").map((d) => (
+            <Column title="In discussion" count={byStatus("negotiating", "awaiting_acceptance").length} hint="Discussing, or final agreement sent">
+              {byStatus("negotiating", "awaiting_acceptance").map((d) => (
                 <DealCard key={d.id} deal={d} />
               ))}
             </Column>

@@ -3,31 +3,41 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Check, MessageCircleQuestion, PenLine, X } from "lucide-react";
+import { Check, CheckCheck, FileSignature, MessageCircleQuestion, PenLine, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { acceptVersion, addClauseComment, cancelConsignment } from "@/lib/actions/consignments";
+import {
+  acceptVersion,
+  addClauseComment,
+  cancelConsignment,
+  markReadyToFinalize,
+  requestChanges,
+} from "@/lib/actions/consignments";
 import { cn } from "@/lib/utils";
 
 /**
- * The main buttons on an open consignment.
- * Creator: Accept / Decline. Brand: Edit consignment / Cancel.
+ * The main buttons on a consignment, by phase.
+ *  Discussion:      creator -> Ready to finalize / Decline.  brand -> Prepare final agreement / Edit terms / Cancel.
+ *  Final agreement: creator -> Accept / Request changes / Decline.  brand -> Cancel (waiting).
  */
 export function DealActions({
   consignmentId,
   versionNo,
   role,
-  canAccept,
+  phase,
+  creatorReady,
 }: {
   consignmentId: string;
   versionNo: number;
   role: "brand" | "influencer";
-  canAccept: boolean;
+  phase: "discussion" | "final";
+  creatorReady: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [confirming, setConfirming] = useState<null | "accept" | "close">(null);
+  const [confirming, setConfirming] = useState<null | "accept" | "close" | "changes">(null);
+  const [reason, setReason] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string; error?: string }>) =>
     start(async () => {
@@ -38,7 +48,7 @@ export function DealActions({
       router.refresh();
     });
 
-  const closeLabel = role === "brand" ? "Cancel consignment" : "Decline consignment";
+  const closeLabel = role === "brand" ? "Cancel" : "Decline";
 
   if (confirming === "close") {
     return (
@@ -59,7 +69,7 @@ export function DealActions({
   if (confirming === "accept") {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Accepting makes these terms final for both sides.</span>
+        <span className="text-sm text-muted-foreground">Accepting makes this agreement final for both sides.</span>
         <Button disabled={pending} onClick={() => run(() => acceptVersion({ consignmentId, versionNo }))}>
           <Check /> Yes, accept
         </Button>
@@ -70,18 +80,73 @@ export function DealActions({
     );
   }
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {canAccept && (
+  if (confirming === "changes") {
+    return (
+      <div className="flex w-full flex-col gap-2 lg:w-[28rem]">
+        <Textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={2}
+          maxLength={1000}
+          autoFocus
+          placeholder="What needs to change before you can accept?"
+        />
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirming(null)}>
+            Back
+          </Button>
+          <Button disabled={pending || reason.trim().length < 3} onClick={() => run(() => requestChanges({ consignmentId, reason }))}>
+            <Undo2 /> Send back to discussion
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "final") {
+    return role === "influencer" ? (
+      <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => setConfirming("accept")}>
-          <Check /> Accept consignment
+          <Check /> Accept agreement
+        </Button>
+        <Button variant="outline" onClick={() => setConfirming("changes")}>
+          <Undo2 /> Request changes
+        </Button>
+        <Button variant="ghost" onClick={() => setConfirming("close")}>
+          <X /> {closeLabel}
+        </Button>
+      </div>
+    ) : (
+      <Button variant="ghost" onClick={() => setConfirming("close")}>
+        <X /> {closeLabel}
+      </Button>
+    );
+  }
+
+  // Discussion phase
+  return role === "influencer" ? (
+    <div className="flex flex-wrap items-center gap-2">
+      {creatorReady ? (
+        <Button variant="secondary" disabled>
+          <CheckCheck /> You&apos;re marked ready
+        </Button>
+      ) : (
+        <Button disabled={pending} onClick={() => run(() => markReadyToFinalize({ consignmentId }))}>
+          <CheckCheck /> Ready to finalize
         </Button>
       )}
-      {role === "brand" && (
-        <Link href={`/deals/${consignmentId}/revise`} className={cn(buttonVariants({ variant: canAccept ? "outline" : "default" }))}>
-          <PenLine /> Edit consignment
-        </Link>
-      )}
+      <Button variant="ghost" onClick={() => setConfirming("close")}>
+        <X /> {closeLabel}
+      </Button>
+    </div>
+  ) : (
+    <div className="flex flex-wrap items-center gap-2">
+      <Link href={`/deals/${consignmentId}/finalize`} className={cn(buttonVariants({ variant: creatorReady ? "default" : "outline" }))}>
+        <FileSignature /> Prepare final agreement
+      </Link>
+      <Link href={`/deals/${consignmentId}/revise`} className={cn(buttonVariants({ variant: creatorReady ? "outline" : "default" }))}>
+        <PenLine /> Edit terms
+      </Link>
       <Button variant="ghost" onClick={() => setConfirming("close")}>
         <X /> {closeLabel}
       </Button>

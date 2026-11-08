@@ -11,7 +11,11 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
+
+/** Gemini embedding size we store (gemini-embedding-001 with outputDimensionality 768). */
+export const EMBEDDING_DIMS = 768;
 
 /* ----------------------------------------------------------------------------
  * Enums
@@ -41,6 +45,8 @@ export const consignmentStatus = pgEnum("consignment_status", [
   "draft",
   "sent",
   "negotiating",
+  // The brand sent the clean final agreement; waiting for the creator to accept it.
+  "awaiting_acceptance",
   "final",
   "in_progress",
   "completed",
@@ -117,6 +123,10 @@ export const influencerProfiles = pgTable("influencer_profiles", {
   pastBrands: text("past_brands").array().notNull().default([]),
   excludedCategories: text("excluded_categories").array().notNull().default([]),
   availability: text("availability"),
+  /** Gemini embedding of the profile text, for matching by meaning (pgvector). */
+  embedding: vector("embedding", { dimensions: EMBEDDING_DIMS }),
+  /** The exact text that was embedded, so we only re-embed when it changes. */
+  embeddingSource: text("embedding_source"),
   ...timestamps,
 });
 
@@ -142,6 +152,8 @@ export const brandProfiles = pgTable("brand_profiles", {
   preferredNiches: text("preferred_niches").array().notNull().default([]),
   preferredPlatforms: text("preferred_platforms").array().notNull().default([]),
   paymentTerms: text("payment_terms"),
+  embedding: vector("embedding", { dimensions: EMBEDDING_DIMS }),
+  embeddingSource: text("embedding_source"),
   ...timestamps,
 });
 
@@ -242,6 +254,8 @@ export const consignments = pgTable(
     title: text("title").notNull(),
     status: consignmentStatus("status").notNull().default("draft"),
     currentVersion: integer("current_version").notNull().default(0),
+    /** Set when the creator clicks "Ready to finalize". Cleared when the brand sends the final agreement. */
+    creatorReadyAt: timestamp("creator_ready_at", { withTimezone: true }),
     finalizedAt: timestamp("finalized_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -264,6 +278,10 @@ export const consignmentVersions = pgTable(
     content: jsonb("content").notNull(),
     /** SHA-256 of the canonical JSON of `content`. Acceptance binds to this. */
     contentHash: text("content_hash").notNull(),
+    /** True for the clean final agreement the creator accepts (no priorities, no open points). */
+    isFinal: boolean("is_final").notNull().default(false),
+    /** For final agreements: how each term was resolved, with the comments it came from. */
+    resolution: jsonb("resolution"),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),

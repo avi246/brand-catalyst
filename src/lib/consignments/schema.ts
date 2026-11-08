@@ -75,6 +75,19 @@ export const consignmentContentSchema = z.object({
   terms: z.array(termSchema).max(40),
 });
 
+/**
+ * How the final agreement settled each term, shown to both sides next to the clean document.
+ * Drafted by Gemini from the comment threads, then reviewed by the brand.
+ */
+export const resolutionItemSchema = z.object({
+  key: z.string().max(40).describe("The key of the fee ('fee'), deliverable or term this is about"),
+  label: z.string().max(80).describe("Human name of the term"),
+  outcome: z.enum(["unchanged", "changed", "added", "removed", "unresolved"]),
+  summary: z.string().max(300).describe("One sentence: what was agreed and why, or what is still open"),
+  sourceCommentIds: z.array(z.string()).max(10).describe("IDs of the comments this is based on"),
+});
+export type ResolutionItem = z.infer<typeof resolutionItemSchema>;
+
 export type Deliverable = z.infer<typeof deliverableSchema>;
 export type Term = z.infer<typeof termSchema>;
 export type ConsignmentContent = z.infer<typeof consignmentContentSchema>;
