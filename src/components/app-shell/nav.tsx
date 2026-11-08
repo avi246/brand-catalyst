@@ -85,14 +85,16 @@ export function SidebarNav() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              active && "bg-muted font-medium text-foreground",
-              n > 0 && "font-medium text-foreground",
+              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+              active
+                ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              !active && n > 0 && "font-medium text-white",
             )}
           >
             <Icon className="size-4" aria-hidden />
             {label}
-            <Count n={n} />
+            <Count n={n} className={active ? "bg-white text-primary" : undefined} />
           </Link>
         );
       })}
@@ -117,7 +119,7 @@ export function MobileNav() {
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground",
-              active && "bg-muted font-medium text-foreground",
+              active && "bg-primary font-medium text-primary-foreground",
             )}
           >
             {label}

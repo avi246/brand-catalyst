@@ -10,10 +10,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const roleLabel = user.role === "brand" ? "Brand" : "Creator";
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 border-r bg-background px-3 py-5 md:flex">
+    <div className="flex min-h-screen bg-background">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-7 bg-sidebar px-3 py-5 text-sidebar-foreground md:flex">
         <Link href="/dashboard" className="px-2.5">
-          <Logo />
+          <Logo tone="dark" />
         </Link>
         <SidebarNav />
       </aside>
