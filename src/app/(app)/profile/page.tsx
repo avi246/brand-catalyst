@@ -1,4 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Pencil } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { ProfileView } from "@/components/profile-view";
 import { requireUser } from "@/lib/auth";
@@ -19,6 +23,11 @@ export default async function ProfilePage() {
           user.role === "brand"
             ? "This is what creators see before they accept your invitation."
             : "This is what brands see when they find you."
+        }
+        actions={
+          <Link href="/profile/edit" className={cn(buttonVariants())}>
+            <Pencil /> Edit profile
+          </Link>
         }
       />
       <ProfileView bundle={bundle} />

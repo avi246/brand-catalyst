@@ -120,6 +120,41 @@ export function ProfileView({ bundle }: { bundle: ProfileBundle }) {
             ))}
           </CardContent>
         </Card>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Audience</CardTitle>
+              <StatSourceBadge source="self" />
+            </CardHeader>
+            <CardContent className="flex flex-col gap-5 text-sm">
+              {p.audienceTopCountries.length || p.audienceAgeBands.length ? (
+                <>
+                  <BarList title="Top countries" rows={p.audienceTopCountries.map((c) => ({ label: c.country, pct: c.pct }))} />
+                  <BarList title="Age" rows={p.audienceAgeBands.map((a) => ({ label: a.band, pct: a.pct }))} />
+                </>
+              ) : (
+                <span className="text-muted-foreground">Audience details not shared yet.</span>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="flex flex-col gap-3 text-sm">
+                <Row label="Content formats">
+                  {p.contentFormats.length ? <span className="capitalize">{p.contentFormats.join(", ")}</span> : "Not shared"}
+                </Row>
+                <Row label="Languages">{p.languages.length ? p.languages.join(", ") : "Not shared"}</Row>
+                <Row label="Availability">{p.availability ?? "Not shared"}</Row>
+                <Row label="Past collaborations">{p.pastBrands.length ? p.pastBrands.join(", ") : "None listed"}</Row>
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -177,6 +212,14 @@ export function ProfileView({ bundle }: { bundle: ProfileBundle }) {
               <Row label="Looking for">
                 {p.preferredNiches.length ? p.preferredNiches.join(", ") : "Not shared"}
               </Row>
+              <Row label="Platforms">
+                {p.preferredPlatforms.length
+                  ? p.preferredPlatforms.map((x) => PLATFORM_LABEL[x] ?? x).join(", ")
+                  : "Not shared"}
+              </Row>
+              <Row label="Target audience">{p.targetAudience ?? "Not shared"}</Row>
+              <Row label="Goals">{p.campaignGoals.length ? p.campaignGoals.join(", ") : "Not shared"}</Row>
+              <Row label="Company size">{p.companySize ? `${p.companySize} people` : "Not shared"}</Row>
             </dl>
           </CardContent>
         </Card>
@@ -192,6 +235,24 @@ function Stat({ label, value }: { label: string; value: number | string | null }
       <dd className="font-medium tabular-nums">
         {value == null ? "—" : typeof value === "number" ? compact.format(value) : value}
       </dd>
+    </div>
+  );
+}
+
+function BarList({ title, rows }: { title: string; rows: { label: string; pct: number }[] }) {
+  if (!rows.length) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs text-muted-foreground">{title}</span>
+      {rows.map((r) => (
+        <div key={r.label} className="grid grid-cols-[3.5rem_1fr_2.5rem] items-center gap-2">
+          <span>{r.label}</span>
+          <span className="h-2 overflow-hidden rounded-full bg-muted">
+            <span className="block h-full rounded-full bg-primary/70" style={{ width: `${Math.min(100, r.pct)}%` }} />
+          </span>
+          <span className="text-right tabular-nums text-muted-foreground">{r.pct}%</span>
+        </div>
+      ))}
     </div>
   );
 }

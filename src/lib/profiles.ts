@@ -9,6 +9,7 @@ import {
   type InfluencerProfile,
   type SocialAccount,
   type User,
+  users,
 } from "@/db/schema";
 
 export type InfluencerBundle = {
@@ -46,6 +47,35 @@ export async function getProfileBundle(user: User): Promise<ProfileBundle | null
     .where(eq(brandProfiles.userId, user.id))
     .limit(1);
   return profile ? { kind: "brand", user, profile } : null;
+}
+
+export async function getInfluencerByHandle(handle: string): Promise<InfluencerBundle | null> {
+  const [row] = await db
+    .select({ profile: influencerProfiles, user: users })
+    .from(influencerProfiles)
+    .innerJoin(users, eq(users.id, influencerProfiles.userId))
+    .where(eq(influencerProfiles.handle, handle.toLowerCase()))
+    .limit(1);
+  if (!row) return null;
+  const accounts = await db.select().from(socialAccounts).where(eq(socialAccounts.userId, row.user.id));
+  return { kind: "influencer", user: row.user, profile: row.profile, accounts };
+}
+
+export async function getBrandBySlug(slug: string): Promise<BrandBundle | null> {
+  const [row] = await db
+    .select({ profile: brandProfiles, user: users })
+    .from(brandProfiles)
+    .innerJoin(users, eq(users.id, brandProfiles.userId))
+    .where(eq(brandProfiles.slug, slug.toLowerCase()))
+    .limit(1);
+  return row ? { kind: "brand", user: row.user, profile: row.profile } : null;
+}
+
+/** Link to someone's About page. */
+export function profileHref(bundle: ProfileBundle) {
+  return bundle.kind === "influencer"
+    ? `/creators/${bundle.profile.handle}`
+    : `/brands/${bundle.profile.slug}`;
 }
 
 type Check = { label: string; done: boolean };

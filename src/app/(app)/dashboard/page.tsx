@@ -100,7 +100,7 @@ export default async function DashboardPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/profile" className={cn(buttonVariants({ variant: "outline" }), "self-start")}>
+            <Link href="/profile/edit" className={cn(buttonVariants({ variant: "outline" }), "self-start")}>
               Edit profile <ArrowRight />
             </Link>
           </CardContent>
